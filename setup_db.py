@@ -5,6 +5,7 @@ from datetime import datetime
 #from datetime import datetime
 from cabby import exceptions as cabby_err
 import json
+from shodan_program import insert_snort
 
 
 database = r"./database.db"
@@ -100,7 +101,8 @@ def add_source(conn, name):
         cur.execute(sql, (name,))
         conn.commit()
     except Error as e:
-        print(e)
+        #print(e)
+        pass
         
 def add_content(conn, name, text, source):
     """
@@ -118,7 +120,8 @@ def add_content(conn, name, text, source):
         cur.execute(sql, (name, text, source))
         conn.commit()
     except Error as e:
-        print(e)
+        #print(e)
+        pass
 
 
 
@@ -139,7 +142,8 @@ def add_spacy(conn, info, info_label, content_id):
         cur.execute(sql, (info, info_label, content_id))
         conn.commit()
     except Error as e:
-        print(e)
+        #print(e)
+        pass
 
 
 def add_shodan(conn, info_list):
@@ -154,27 +158,28 @@ def add_shodan(conn, info_list):
 
     cur = conn.cursor()
     for i in info_list:
-        print(i)
-        if i[0] != 'No info in shodan':
-            for j in i[0][1]:
-                print(j, i[1], i[2])
-                try:
-                    sql = ''' INSERT INTO shodan(info, info_label, spacy_id) VALUES(?, ?, ?) '''
-                    cur.execute(sql, (j, i[1], i[2]))
-                    
-                except Error as e:
-                    print(e)
+        #print(i)
+        #if i[0] != 'No info in shodan':
+        try:
+            sql = ''' INSERT INTO shodan(info, info_label, spacy_id) VALUES(?, ?, ?) '''
+            cur.execute(sql, (i[0], i[1], i[2]))                    
+        except Error as e:
+            #print(e)
+            pass
+        '''
+        Tryed to fix this
         else:
             try:
-                sql = ''' INSERT INTO shodan(info, info_label, spacy_id) VALUES(?, ?, ?) '''
+                sql = ' INSERT INTO shodan(info, info_label, spacy_id) VALUES(?, ?, ?) '
                 cur.execute(sql, (i[0], i[1], i[2]))
                     
             except Error as e:
                 print(e)
+        '''        
     conn.commit()
 
 
-def add_snort(conn, ipv4, msg, content_id, port_src="any", protocol="any", destination="any", port="any"):
+def add_snort(conn, ipv4, msg, content_id, port_src="any", protocol="tcp", destination="any", port="any"):
     """
     Add a new source into the source table
     
@@ -193,16 +198,26 @@ def add_snort(conn, ipv4, msg, content_id, port_src="any", protocol="any", desti
     try:
         cur = conn.cursor()
         cur.execute(sql, (protocol, ipv4, port_src, destination, port, msg, content_id))
-        cur.execute('select max(sid) from snort')
-        conn.commit()
+        cur.execute('select sid from snort where sid=(select max(sid) from snort)')
+        info = {
+                "sid": "1000000",
+                "protocol": protocol,
+                "ipv4_src": ipv4,
+                "port_src": port_src,
+                "destination": destination,
+                "port": port,
+                "msg": msg
+            }
+        #print(info)
         for row in cur:
             (sid, ) = row
-            if sid == None:
-                sid = 0
-            print(sid)
-            return sid
+            info["sid"] = str(int(info["sid"]) + sid)
+        #print(info)
+        insert_snort(info)
+        conn.commit()
     except Error as e:
-        print(e)
+        #print(e)
+        pass
 
 
 
@@ -216,8 +231,9 @@ def get_highest_content(conn, source):
         for row in cur:
             (content_id,) = row
             return content_id
-    except Error as e:
-        print(e)
+    except Error:
+        #print(e)
+        pass
 
 def get_ipv4_spacy(conn, label):
     
@@ -233,9 +249,9 @@ def get_ipv4_spacy(conn, label):
             print("test = ", test)
         sql = ""
         if test != None:
-            sql = 'select info, info_id from spacy where info_label=(?) and info_id not in (select distinct(spacy_id) from shodan) and info_id > (select max(spacy_id) from shodan) limit 50'
+            sql = 'select info, info_id from spacy where info_label=(?) and info_id not in (select distinct(spacy_id) from shodan) and info_id > (select max(spacy_id) from shodan) limit 10'
         else:
-            sql = 'select info, info_id from spacy where info_label=(?) limit 50'
+            sql = 'select info, info_id from spacy where info_label=(?)'
         cur.execute(sql, (label,))
         for row in cur:
             (info, info_id) = row
@@ -363,13 +379,13 @@ def collect_stix_info(conn, client, source_name, NUMBER):
         #cnts = []
         highest_id = get_highest_content(conn, source_name)
 
-        if source_name == "vxvault" or source_name == "hailataxii.guest.CyberCrime_Tracker" or source_name == "hailataxii.guest.MalwareDomainList_Hostlist" or source_name == "hailataxii.guest.Abuse_ch":
-            return
+        #if source_name == "vxvault" or source_name == "hailataxii.guest.CyberCrime_Tracker" or source_name == "hailataxii.guest.MalwareDomainList_Hostlist" or source_name == "hailataxii.guest.Abuse_ch":
+        #    return
 
         #print(f"the highest id is {highest_id} and the source_name is {source_name}")
 
-        newest_date = get_name_content(conn, highest_id)
-        print(f"newest date is {newest_date} and the source_name is {source_name}")
+        #newest_date = get_name_content(conn, highest_id)
+        #print(f"newest date is {newest_date} and the source_name is {source_name}")
 
         
         content_blocks = client.poll(collection_name=source_name)#, begin_date=newest_date)
@@ -380,7 +396,8 @@ def collect_stix_info(conn, client, source_name, NUMBER):
         for block in content_blocks:
             cnt = block.content
             #cnts.append([cnt, str(block.timestamp)])
-            print(f"getting block {tmp_cnt_msg + 1} {source_name} with timestamp {block.timestamp}")
+            if (tmp_cnt_msg + 1) % 100 == 0:
+                print(f"getting block {tmp_cnt_msg + 1} {source_name} with timestamp {block.timestamp}")
             list_of_ents.append([str(block.timestamp), cnt, source_name])
             #add_content(conn, str(block.timestamp), cnt, source_name)
 
@@ -443,6 +460,53 @@ def clean_spacy_list(conn):
     except Error as e:
         print(e)        
 
+
+def insert_snort_info(conn):
+    cur = conn.cursor()
+    number = 0
+    try:
+        cur.execute('select count(*) from shodan where info not in ("No info in shodan", "0")')
+        for row in cur:
+            (result, ) = row
+            number = int(result)
+        cur.execute('select count(*) from snort')
+        for row in cur:
+            (result, ) = row
+            number -= int(result)
+    except:
+        pass
+    print("The number is", number)
+    for i in range(number):
+        try:
+            sql = ""
+            result = "" 
+            cur.execute('select max(sid) from snort')
+            for row in cur:
+                (sid, ) = row
+                result = sid
+            print("The result is", result)
+            if result != None:
+                sql =' select info, content_id from spacy where content_id  not in (select content_id from snort) and info_id in (select spacy_id from shodan where info not in ("No info in shodan", "0")) and info_label="ipv4" limit 1 '
+            else:
+                sql = ' select info, content_id from spacy where info_id in (select spacy_id from shodan where info not in ("No info in shodan", "0")) and info_label="ipv4" limit 1 '
+            cur.execute(sql)
+            cid = ""
+            ipv4_src = ""
+            msg = ""
+            for row in cur:
+                (info, content_id) = row
+                cid = content_id
+                ipv4_src = info
+                print("cid and ipv4", cid, ipv4_src)
+                if cid == None or ipv4_src == None:
+                    Error
+            msg = f"Alert, this ip {ipv4_src} has been found malicios, se STIX file {cid}"
+            print(msg)
+            info = add_snort(conn, ipv4_src, msg, cid)
+                
+
+        except:
+            pass
 
         
 def setup():

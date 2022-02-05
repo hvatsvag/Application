@@ -15,24 +15,25 @@ def check_ipv4(list):#, filter_type):
         try:
                 # Search Shodan
             results = api.search(i[0])
-            print("spacy_id is", i[0])
-            print("This is the whole list", list)
+            #print("spacy_id is", i[0])
+            #print("This is the whole list", list)
             try_list += f"{i[0], }"
             if results['total'] != 0:
-                i[0] = [i[0], [0]]
+                #i[0] = [i[0], [0]]
                     # Show the results
                 
-                print('Results found: {}'.format(results['total']))
-                data_info = ""
+                #print('Results found: {}'.format(results['total']))
+                #data_info = ""
+                i[0] = ""
                 for result in results['matches']:
-                    data_info += ('IP: {}'.format(result)) + "\n"
-                    data_info += result['data'] + "\n"
-                    print(data_info)
+                    i[0] += ('IP: {}'.format(result)) + "\n"
+                    i[0] += result['data'] + "\n"
+                    #print(data_info)
                     #r_data = json.dumps(result, indent=4)
                     #print("This is r_data", r_data)
                     #print('')
-                i[0][1].append(data_info)
-                print(i[0])
+                #i[0] = data_info
+                #print(i[0])
             else:
                 i[0] = "No info in shodan"
             info_list.append(i)
@@ -40,7 +41,7 @@ def check_ipv4(list):#, filter_type):
         except shodan.APIError as e:
             print('Error: {}'.format(e))
             i[0] = "Error when handling"
-        print(try_list)
+        #print(try_list)
         time.sleep(1)
     return info_list
 

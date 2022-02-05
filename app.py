@@ -2,7 +2,8 @@ from http import client
 from multiprocessing.connection import Client
 from socket import timeout
 import PySimpleGUI as sg
-from setup_db import create_connection, add_source, get_text_content, collect_stix_info, add_spacy, delete_entry_content, clean_spacy_list, get_all_label_spacy, clean_content_list, get_ipv4_spacy, add_shodan, add_snort
+from setup_db import create_connection, add_source, get_text_content, collect_stix_info, add_spacy, delete_entry_content, \
+    clean_spacy_list, get_all_label_spacy, clean_content_list, get_ipv4_spacy, add_shodan, add_snort, insert_snort_info
 import sqlite3
 from cabby import create_client
 import stix2viz
@@ -102,7 +103,7 @@ while True:
         CLIENT = create_client(
             'hailataxii.com',
             discovery_path='/taxii-discovery-service')
-        print(CLIENT)
+        #print(CLIENT)
         CLIENT.set_auth(username="guest", password="guest")
         if CLIENT != None:
             window['-CONNECT_OUTPUT_HAILATAXII-'].update('Created')
@@ -116,7 +117,7 @@ while True:
         col_string = ''
         for i in COLLECTIONS:
             col_string += i.name + '\n'
-            print(i)
+            #print(i)
         if col_string != None:
             window['-COLLECTIONS_OUTPUT-'].update(col_string)
         
@@ -252,15 +253,15 @@ while True:
 
     elif event == 'Find relevant info list no json':
         #spacy_working = ""
-        times = 1
-        for i in range(times):
-            for j in COLLECTIONS:
-                #if j.name != 'vxvault' and j.name != 'hailataxii.guest.CyberCrime_Tracker' and j.name != 'hailataxii.guest.MalwareDomainList_Hostlist':
-                if j.name != 'guest.dshield_BlockList':
-                    #counter_getdata += 1
-                    print(f"Trying to connect to {j.name}")
-                    collect_stix_info(conn, CLIENT, j.name, 1000)
-                    #window['-COLLECT_VX-'].update('Data added 25, for each')
+        #times = 100
+        #for i in range(times):
+        for j in COLLECTIONS:
+            #if j.name != 'vxvault' and j.name != 'hailataxii.guest.CyberCrime_Tracker' and j.name != 'hailataxii.guest.MalwareDomainList_Hostlist':
+            if j.name != 'guest.dshield_BlockList':
+                #counter_getdata += 1
+                print(f"Trying to connect to {j.name}")
+                collect_stix_info(conn, CLIENT, j.name, 17000)
+                #window['-COLLECT_VX-'].update('Data added 25, for each')
             content_list = get_text_content(conn)
             #print(text_content)
             list_of_entrys = find_relevant_spacy_stix(content_list)
@@ -305,11 +306,13 @@ while True:
             clean_content_list(conn)
             
             print("done cleaning")
-            list_ipv4 = get_ipv4_spacy(conn, 'ipv4')
-            info_list = check_ipv4(list_ipv4)
-            add_shodan(conn, info_list)
+            for i in range(1000):
+                list_ipv4 = get_ipv4_spacy(conn, 'ipv4')
+                info_list = check_ipv4(list_ipv4)
+                add_shodan(conn, info_list)
+            #insert_snort_info(conn)
             print("Done shodan")
-            time.sleep(600)
+            time.sleep(100)
         window['-SPACY_COLLECT_LIST_NJS-'].update(f"number of docs evaluated was {len(content_list)*times}")
 
     elif event == 'Print IPv4 list':
@@ -321,25 +324,24 @@ while True:
         window['-PRINT_IPV4-'].update(f"Printed in terminal")
 
     elif event == 'Print IPv4 shodan':
-        list_ipv4 = get_ipv4_spacy(conn, 'ipv4')
-        info_list = check_ipv4(list_ipv4)
-        add_shodan(conn, info_list)
+        for i in range(1000):
+            list_ipv4 = get_ipv4_spacy(conn, 'ipv4')
+            info_list = check_ipv4(list_ipv4)
+            add_shodan(conn, info_list)
         window['-PRINT_IPV4_SHODAN-'].update(f"Printed in terminal")
 
     elif event == 'Try Snort':
+        '''
         info = {
-            "protocol": "any",
-            "ipv4_src": "99.83.190.102",
-            "port_src": "any",
-            "destination": "any",
-            "port": "any",
-            "msg": "oh no, somone is trying to connect to Apply :-O",
+            "ipv4_src": "",
+            "msg": "",
             "sid": "1000000"
         }
-        id = add_snort(conn, info["ipv4_src"], info["msg"], "test_apply_data")
-        print(id)
-        info["sid"] = str(int(info["sid"]) + id)
-        insert_snort(info)
+        '''
+
+
+        
+        insert_snort_info(conn)
         window['-TRY_SNORT-'].update(f"Tried to update Snort")
 
     elif event == 'Print URL list':
