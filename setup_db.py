@@ -70,6 +70,7 @@ sql_create_spacy_table = """CREATE TABLE IF NOT EXISTS spacy (
 sql_create_shodan_table = """CREATE TABLE IF NOT EXISTS shodan (
                                 shodan_id INTeger PRIMARY KEY autoincrement,
                                 info varchar(255) not null,
+                                additional_info varchar(255),
                                 info_label varchar(255) not null,
                                 spacy_id integen not null,
                                 foreign key (spacy_id) references spacy (info_id)
@@ -158,14 +159,17 @@ def add_shodan(conn, info_list):
 
     cur = conn.cursor()
     for i in info_list:
+        #print("I is", i)
         #print(i)
         #if i[0] != 'No info in shodan':
-        try:
-            sql = ''' INSERT INTO shodan(info, info_label, spacy_id) VALUES(?, ?, ?) '''
-            cur.execute(sql, (i[0], i[1], i[2]))                    
-        except Error as e:
-            #print(e)
-            pass
+        for j in i:
+            #print("j is",j)
+            try:
+                sql = ''' INSERT INTO shodan(info, additional_info, info_label, spacy_id) VALUES(?, ?, ?, ?) '''
+                cur.execute(sql, (j[0][0], j[0][1], j[1], j[2]))                    
+            except Error as e:
+                #print(e)
+                pass
         '''
         Tryed to fix this
         else:
@@ -196,25 +200,27 @@ def add_snort(conn, ipv4, msg, content_id, port_src="any", protocol="tcp", desti
 
     sql = ''' INSERT INTO snort(protocol, ipv4_src, port_src, destination, port, msg, content_id) VALUES(?,?,?,?,?,?,?) '''
     try:
-        cur = conn.cursor()
-        cur.execute(sql, (protocol, ipv4, port_src, destination, port, msg, content_id))
-        cur.execute('select sid from snort where sid=(select max(sid) from snort)')
-        info = {
-                "sid": "1000000",
-                "protocol": protocol,
-                "ipv4_src": ipv4,
-                "port_src": port_src,
-                "destination": destination,
-                "port": port,
-                "msg": msg
-            }
-        #print(info)
-        for row in cur:
-            (sid, ) = row
-            info["sid"] = str(int(info["sid"]) + sid)
-        #print(info)
-        insert_snort(info)
-        conn.commit()
+        if ipv4 != "" and content_id != "":
+            cur = conn.cursor()
+            cur.execute(sql, (protocol, ipv4, port_src, destination, port, msg, content_id))
+            cur.execute('select sid from snort where sid=(select max(sid) from snort)')
+            info = {
+                    "sid": "1000000",
+                    "protocol": protocol,
+                    "ipv4_src": ipv4,
+                    "port_src": port_src,
+                    "destination": destination,
+                    "port": port,
+                    "msg": msg
+                }
+            #print(info)
+            for row in cur:
+                (sid, ) = row
+                info["sid"] = str(int(info["sid"]) + sid)
+            #print(info)
+            
+            insert_snort(info)
+            conn.commit()
     except Error as e:
         #print(e)
         pass
@@ -246,7 +252,7 @@ def get_ipv4_spacy(conn, label):
         for row in test1:
             (id, ) = row
             test = id
-            print("test = ", test)
+            #print("test = ", test)
         sql = ""
         if test != None:
             sql = 'select info, info_id from spacy where info_label=(?) and info_id not in (select distinct(spacy_id) from shodan) and info_id > (select max(spacy_id) from shodan) limit 10'
@@ -285,12 +291,12 @@ def get_text_content(conn):
         for row in test1:
             (id, ) = row
             test = id
-            print("test = ", test)
+            #print("test = ", test)
         sql = ""
         if test == None:
-            sql = "select content_text, content_id from content WHERE content_id not in (select content_id from spacy) limit 10000000"
+            sql = "select content_text, content_id from content WHERE content_id not in (select content_id from spacy) limit 2000"
         else:
-            sql = "select content_text, content_id from content WHERE content_id > (select max(content_id) from spacy) limit 10000000"
+            sql = "select content_text, content_id from content WHERE content_id > (select max(content_id) from spacy) limit 2000"
         
         #
         cur.execute(sql)
@@ -348,7 +354,7 @@ def get_all_content(conn, content_id):
         cur.execute(sql, (content_id,))
         for row in cur:
             (content_id, name, content_text, source) = row
-            print("This is the content of the entry", name, content_text, source)
+            #print("This is the content of the entry", name, content_text, source)
             return name, content_text, source
         conn.commit()
     except Error as e:
@@ -361,7 +367,7 @@ def collect_stix_info_first_time(conn, client, source_name, NUMBER):
         tmp_cnt_msg = 0
         for block in content_blocks:
             cnt = block.content
-            print(f"getting block {tmp_cnt_msg + 1}")
+            #print(f"getting block {tmp_cnt_msg + 1}")
             add_content(conn, str(block.timestamp), cnt, source_name)
             tmp_cnt_msg += 1
             if tmp_cnt_msg >= NUMBER_OF_MSGS:
@@ -396,7 +402,7 @@ def collect_stix_info(conn, client, source_name, NUMBER):
         for block in content_blocks:
             cnt = block.content
             #cnts.append([cnt, str(block.timestamp)])
-            if (tmp_cnt_msg + 1) % 100 == 0:
+            if (tmp_cnt_msg + 1) % 10000 == 0:
                 print(f"getting block {tmp_cnt_msg + 1} {source_name} with timestamp {block.timestamp}")
             list_of_ents.append([str(block.timestamp), cnt, source_name])
             #add_content(conn, str(block.timestamp), cnt, source_name)
@@ -426,7 +432,7 @@ def collect_stix_info(conn, client, source_name, NUMBER):
 def delete_entry_content(conn, content_id_list):
     cur = conn.cursor()
     for i in content_id_list:
-        print("This is i", i)
+        #print("This is i", i)
         try:
             name, content_text, source = get_all_content(conn, i[1])
             sql1 = ''' INSERT INTO content_failed(name, content_text, source) VALUES(?, ?, ?) '''
@@ -475,7 +481,7 @@ def insert_snort_info(conn):
             number -= int(result)
     except:
         pass
-    print("The number is", number)
+    #print("The number is", number)
     for i in range(number):
         try:
             sql = ""
@@ -484,7 +490,7 @@ def insert_snort_info(conn):
             for row in cur:
                 (sid, ) = row
                 result = sid
-            print("The result is", result)
+            #print("The result is", result)
             if result != None:
                 sql =' select info, content_id from spacy where content_id  not in (select content_id from snort) and info_id in (select spacy_id from shodan where info not in ("No info in shodan", "0")) and info_label="ipv4" limit 1 '
             else:
@@ -497,11 +503,11 @@ def insert_snort_info(conn):
                 (info, content_id) = row
                 cid = content_id
                 ipv4_src = info
-                print("cid and ipv4", cid, ipv4_src)
+                #print("cid and ipv4", cid, ipv4_src)
                 if cid == None or ipv4_src == None:
                     Error
             msg = f"Alert, this ip {ipv4_src} has been found malicios, se STIX file {cid}"
-            print(msg)
+            #print(msg)
             info = add_snort(conn, ipv4_src, msg, cid)
                 
 

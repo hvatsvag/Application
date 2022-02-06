@@ -183,7 +183,7 @@ def find_relevant_spacy_list(list_of_stuff):
 
 # This one does not convert stix to json
 def find_relevant_spacy_stix(list_of_stuff):
-    print(len(list_of_stuff))
+    #print(len(list_of_stuff))
     nlp = spacy.load("en_core_web_sm")
     all_entries = []
     #list_of_elevated_stuff = []
@@ -249,7 +249,7 @@ def find_relevant_spacy_stix(list_of_stuff):
         all_entries.append([entrys, i[1]])
         #print("The lengt of all entrys is", len(all_entries), "Added", [entrys, i[1]])
         counter += 1
-        if counter % 200 == 0:
+        if counter % 2000 == 0:
             print("Documents processed by spacy", counter)
     return all_entries#, rest_list
 

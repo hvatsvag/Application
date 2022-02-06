@@ -253,66 +253,68 @@ while True:
 
     elif event == 'Find relevant info list no json':
         #spacy_working = ""
-        #times = 100
-        #for i in range(times):
-        for j in COLLECTIONS:
-            #if j.name != 'vxvault' and j.name != 'hailataxii.guest.CyberCrime_Tracker' and j.name != 'hailataxii.guest.MalwareDomainList_Hostlist':
-            if j.name != 'guest.dshield_BlockList':
-                #counter_getdata += 1
-                print(f"Trying to connect to {j.name}")
-                collect_stix_info(conn, CLIENT, j.name, 17000)
-                #window['-COLLECT_VX-'].update('Data added 25, for each')
-            content_list = get_text_content(conn)
-            #print(text_content)
-            list_of_entrys = find_relevant_spacy_stix(content_list)
-            #print("The length of list_of_entrys is", len(list_of_entrys))
-            #list_of_done = []
-                #print("\n\n\n\n\nThis is j\n\n\n\n\n",j[1])
-            if list_of_entrys != None:
-                for j in list_of_entrys:
-                    #print("j is", j, type(j))
-                    for ent in j[0].ents:
-                        if ent.text != "rules.emergingthreats.net" and ent.label_ != "DATE":
+        times = 1
+        for i in range(times):
+            for j in COLLECTIONS:
+                #if j.name != 'vxvault' and j.name != 'hailataxii.guest.CyberCrime_Tracker' and j.name != 'hailataxii.guest.MalwareDomainList_Hostlist':
+                if j.name != 'guest.dshield_BlockList' and j.name != 'guest.Abuse_ch':
+                    #counter_getdata += 1
+                    #print(f"Trying to connect to {j.name}")
+                    collect_stix_info(conn, CLIENT, j.name, 500000)
+                    #window['-COLLECT_VX-'].update('Data added 25, for each')
+                for i in range(20):
+                    content_list = get_text_content(conn)
+                    #print(text_content)
+                    list_of_entrys = find_relevant_spacy_stix(content_list)
+                    #print("The length of list_of_entrys is", len(list_of_entrys))
+                    #list_of_done = []
+                        #print("\n\n\n\n\nThis is j\n\n\n\n\n",j[1])
+                    if list_of_entrys != None:
+                        for j in list_of_entrys:
+                            #print("j is", j, type(j))
+                            for ent in j[0].ents:
+                                if ent.text != "rules.emergingthreats.net" and ent.label_ != "DATE":
 
-                            #print("ent is", ent.text, ent.label_, (j[1]))
-                            add_spacy(conn, ent.text, ent.label_, (j[1]))
-                            #print(ent.text, ent.label_, (j[1]))
-                    #list_of_done.append(j[1])
-                    #print(entrys)
-            
-            '''
-            list_of_entrys, delete_list = find_relevant_spacy_list(content_list)
-            #print("The length of list_of_entrys is", len(list_of_entrys))
-            if len(delete_list) > 0:
-                #print(delete_list)
-                delete_entry_content(conn, delete_list)
-            #list_of_done = []
-                #print("\n\n\n\n\nThis is j\n\n\n\n\n",j[1])
-            if list_of_entrys != None:
-                for j in list_of_entrys:
-                    #print("j is", j, type(j))
-                    for ent in j[0].ents:
-                        if ent.text != "rules.emergingthreats.net":
+                                    #print("ent is", ent.text, ent.label_, (j[1]))
+                                    add_spacy(conn, ent.text, ent.label_, (j[1]))
+                                    #print(ent.text, ent.label_, (j[1]))
+                            #list_of_done.append(j[1])
+                            #print(entrys)
+                
+                '''
+                list_of_entrys, delete_list = find_relevant_spacy_list(content_list)
+                #print("The length of list_of_entrys is", len(list_of_entrys))
+                if len(delete_list) > 0:
+                    #print(delete_list)
+                    delete_entry_content(conn, delete_list)
+                #list_of_done = []
+                    #print("\n\n\n\n\nThis is j\n\n\n\n\n",j[1])
+                if list_of_entrys != None:
+                    for j in list_of_entrys:
+                        #print("j is", j, type(j))
+                        for ent in j[0].ents:
+                            if ent.text != "rules.emergingthreats.net":
 
-                            #print("ent is", ent.text, ent.label_, (j[1]))
-                            add_spacy(conn, ent.text, ent.label_, (j[1]))
-                            #print(ent.text, ent.label_, (j[1]))
-                    #list_of_done.append(j[1])
-            '''
+                                #print("ent is", ent.text, ent.label_, (j[1]))
+                                add_spacy(conn, ent.text, ent.label_, (j[1]))
+                                #print(ent.text, ent.label_, (j[1]))
+                        #list_of_done.append(j[1])
+                '''
 
-            #print(len(list_of_entrys))
-            #print(list_of_done)
-            clean_spacy_list(conn)    
-            clean_content_list(conn)
-            
-            print("done cleaning")
-            for i in range(1000):
-                list_ipv4 = get_ipv4_spacy(conn, 'ipv4')
-                info_list = check_ipv4(list_ipv4)
-                add_shodan(conn, info_list)
-            #insert_snort_info(conn)
-            print("Done shodan")
-            time.sleep(100)
+                #print(len(list_of_entrys))
+                #print(list_of_done)
+                clean_spacy_list(conn)    
+                clean_content_list(conn)
+                
+                print("done cleaning")
+                for i in range(1000):
+                    list_ipv4 = get_ipv4_spacy(conn, 'ipv4')
+                    info_list = check_ipv4(list_ipv4)
+                    add_shodan(conn, info_list)
+                #insert_snort_info(conn)
+                print("Done shodan")
+                insert_snort_info(conn)
+                #time.sleep(100)
         window['-SPACY_COLLECT_LIST_NJS-'].update(f"number of docs evaluated was {len(content_list)*times}")
 
     elif event == 'Print IPv4 list':
@@ -324,7 +326,7 @@ while True:
         window['-PRINT_IPV4-'].update(f"Printed in terminal")
 
     elif event == 'Print IPv4 shodan':
-        for i in range(1000):
+        for i in range(1):
             list_ipv4 = get_ipv4_spacy(conn, 'ipv4')
             info_list = check_ipv4(list_ipv4)
             add_shodan(conn, info_list)
