@@ -249,7 +249,7 @@ def find_relevant_spacy_stix(list_of_stuff):
         all_entries.append([entrys, i[1]])
         #print("The lengt of all entrys is", len(all_entries), "Added", [entrys, i[1]])
         counter += 1
-        if counter % 2000 == 0:
+        if counter % 200 == 0:
             print("Documents processed by spacy", counter)
     return all_entries#, rest_list
 
