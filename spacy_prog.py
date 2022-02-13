@@ -185,7 +185,17 @@ def find_relevant_spacy_list(list_of_stuff):
 def find_relevant_spacy_stix(list_of_stuff):
     #print(len(list_of_stuff))
     nlp = spacy.load("en_core_web_sm")
+    ruler = nlp.add_pipe("entity_ruler", before="ner")
+    patterns_ruler = [
+        {"label": "transport", "pattern": "tcp"},
+        #{"label": "transport", "pattern": "ip"},
+        {"label": "transport", "pattern": "icmp"},
+        {"label": "transport", "pattern": "udp"}
+    ]
+
+    ruler.add_patterns(patterns_ruler)
     all_entries = []
+    all_maches = []
     #list_of_elevated_stuff = []
     #rest_list = []
     
@@ -211,11 +221,21 @@ def find_relevant_spacy_stix(list_of_stuff):
         {"LIKE_URL": True},
         #{"ORTH": "http://vxvault", "OP": "!"}
         ]
+    patterns_matcher5 = [
+        {"TEXT": {"REGEX": r"^{0}(?:\.{0}){{3}}$".format(octet_rx)}},
+        {"TEXT": {"REGEX": r"[0-9]{4}?"}, "OP": "+"}
+    ]
+    patterns_matcher6 = [
+        {"ORTH": "Port"},
+        {"TEXT": {"REGEX": r"[0-9]{2}?"}, "OP": "+"}
+]
     matcher = Matcher(nlp.vocab)
     matcher.add("ipv4", [patterns_matcher])
     matcher.add("MD5", [patterns_matcher2])
     matcher.add("SHA-256", [patterns_matcher3])
     matcher.add("URL", [patterns_matcher4])
+    matcher.add("ipv4 and port", [patterns_matcher5])
+    matcher.add("Port", [patterns_matcher6])
     
     counter = 0 
     for i in list_of_stuff:
@@ -223,30 +243,30 @@ def find_relevant_spacy_stix(list_of_stuff):
         information = information.replace("<", " <")
         information = information.replace(">", "> ")
         entrys = nlp(information)
+        new_matches = []
         matches = matcher(entrys)
         #print("Len og matches is", len(matches))
-        if len(matches) > 0:
+        
+        
             
-            patterns_ruler = []
-            span_list = []
-            for match_id, start, end in matches:
+            
+            
+        span_list = []
+        for match_id, start, end in matches:
                 
-                str_id = nlp.vocab.strings[match_id]
-                span = entrys[start:end]
-                if span in span_list:
-                    continue
-                span_list.append(span)
+            str_id = nlp.vocab.strings[match_id]
+            span = entrys[start:end]
+            if span in span_list:
+                continue
+            span_list.append(span)
                 #print("This is the matches", match_id, str_id, start, end, span.text)
-                patterns_ruler.append({"label": f"{str_id}", "pattern": f"{span.text}"})
-            try:
-                ruler = nlp.add_pipe("entity_ruler", before="ner")
-
-            except:
-                pass    
-            ruler.add_patterns(patterns_ruler)
+            new_matches.append([f"{str_id}", f"{span.text}"])
+             
+        
+            #ruler.add_patterns(new_patterns_ruler)
             #print("Added to ruler")
-            entrys = nlp(information)
-        all_entries.append([entrys, i[1]])
+            #entrys = nlp(information)
+        all_entries.append([entrys, i[1], new_matches])
         #print("The lengt of all entrys is", len(all_entries), "Added", [entrys, i[1]])
         counter += 1
         if counter % 200 == 0:

@@ -66,6 +66,14 @@ sql_create_spacy_table = """CREATE TABLE IF NOT EXISTS spacy (
                                 foreign key (content_id) references content (content_id)
                             );"""
 
+sql_create_spacy2_table = """CREATE TABLE IF NOT EXISTS spacy2 (
+                                info_id INTeger PRIMARY KEY autoincrement,
+                                info varchar(255) not null,
+                                info_label varchar(255) not null,
+                                content_id integen not null,
+                                foreign key (content_id) references content (content_id)
+                            );"""
+
 
 sql_create_shodan_table = """CREATE TABLE IF NOT EXISTS shodan (
                                 shodan_id INTeger PRIMARY KEY autoincrement,
@@ -146,6 +154,25 @@ def add_spacy(conn, info, info_label, content_id):
         #print(e)
         pass
 
+def add_spacy2(conn, info, info_label, content_id):
+    """
+    Add a new source into the spacy2 table
+    :param conn:
+    :param info:
+    :param info_label:
+    :param content_id:
+    
+    """
+
+    sql = ''' INSERT INTO spacy2(info, info_label, content_id) VALUES(?, ?, ?) '''
+    try:
+        cur = conn.cursor()
+        cur.execute(sql, (info, info_label, content_id))
+        conn.commit()
+    except Error as e:
+        #print(e)
+        pass
+
 
 def add_shodan(conn, info_list):
     """
@@ -167,7 +194,7 @@ def add_shodan(conn, info_list):
             try:
                 sql = ''' INSERT INTO shodan(info, additional_info, info_label, spacy_id) VALUES(?, ?, ?, ?) '''
                 cur.execute(sql, (j[0][0], j[0][1], j[1], j[2]))
-                print(type(j[0][1]), "This is the type inserted")                    
+                #print(type(j[0][1]), "This is the type inserted")                    
             except Error as e:
                 #print(e)
                 pass
@@ -185,7 +212,7 @@ def add_shodan(conn, info_list):
 
 
 def add_snort(conn, ipv4, msg, content_id, port_src="any", protocol="tcp", destination="any", port="any"):
-    print(f"ipv4=", {ipv4}, "msg:", {msg}, "content_id:", {content_id}, "port_src:", {port_src}, "protocol:", {protocol}, "destination:", {destination}, "port:", {port})
+    #print(f"ipv4=", {ipv4}, "msg:", {msg}, "content_id:", {content_id}, "port_src:", {port_src}, "protocol:", {protocol}, "destination:", {destination}, "port:", {port})
     """
     Add a new source into the source table
     
@@ -259,7 +286,7 @@ def get_ipv4_spacy(conn, label):
         if test != None:
             sql = 'select info, info_id from spacy where info_label=(?) and info_id not in (select distinct(spacy_id) from shodan) limit 10'
         else:
-            sql = 'select info, info_id from spacy where info_label=(?)'
+            sql = 'select info, info_id from spacy where info_label=(?) limit 10'
         cur.execute(sql, (label,))
         for row in cur:
             (info, info_id) = row
@@ -296,9 +323,9 @@ def get_text_content(conn):
             #print("test = ", test)
         sql = ""
         if test == None:
-            sql = "select content_text, content_id from content WHERE content_id not in (select content_id from spacy) limit 2000"
+            sql = "select content_text, content_id from content WHERE content_id not in (select content_id from spacy) limit 300000"
         else:
-            sql = "select content_text, content_id from content WHERE content_id > (select max(content_id) from spacy) limit 2000"
+            sql = "select content_text, content_id from content WHERE content_id > (select max(content_id) from spacy) limit 300000"
         
         #
         cur.execute(sql)
@@ -312,6 +339,28 @@ def get_text_content(conn):
         return content_list
     except Error as e:
         print(e)
+
+
+def get_text_content_spacy2(conn):
+    
+    
+    
+    try:
+        cur = conn.cursor()
+        
+        
+        cur.execute("select content_text, content_id from content WHERE content_id not in (select content_id from spacy2) and content_id in (select content_id from spacy where info_id in (select spacy_id from shodan where info not in ('No info in shodan')) limit 100")
+        content_list = []
+        #print(len(cur))
+        for row in cur:
+            (content_text, content_id) = row
+            content_list.append([content_text, content_id])
+            #print(len(content_list))
+        #print(len(content_list))
+        return content_list
+    except Error as e:
+        print(e)
+
 
 
 def get_text_content_failed(conn):
@@ -421,15 +470,7 @@ def collect_stix_info(conn, client, source_name, NUMBER):
     except:
         print("Failed because of some reason")
         pass
-    '''
-    except cabby_err.HTTPError(502) as e:
-        print(e)
-        pass
 
-    except Exception as argument:
-        print('This is the argument', argument)
-        pass
-    '''
 
 def delete_entry_content(conn, content_id_list):
     cur = conn.cursor()
@@ -460,7 +501,7 @@ def clean_content_list(conn):
 def clean_spacy_list(conn):
     cur = conn.cursor()
     try:
-        cur.execute('delete from spacy where content_id not in (select distinct(content_id) from spacy where info_label=("URL") or info_label=("ipv4"))')
+        cur.execute('delete from spacy where content_id not in (select distinct(content_id) from spacy where info_label=("URL") or info_label=("ipv4") or info_label=("ipv4 and port") or info_label=("Port"))')
         #cur.execute(sql1, (name, content_text, source))
         #sql = 'delete from content where content_id=(?)'
         #cur.execute(sql, (i,))
@@ -541,6 +582,7 @@ def setup():
         create_table(conn, sql_create_content_failed_table)
         create_table(conn, sql_create_shodan_table)
         create_table(conn, sql_create_snort_table)
+        create_table(conn, sql_create_spacy2_table)
         #insert_snort_info(conn)
         conn.close()
 

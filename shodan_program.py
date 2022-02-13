@@ -22,31 +22,31 @@ def check_ipv4(list):#, filter_type):
                 #print("spacy_id is", i[0])
                 #print("This is the whole list", list)
                 try_list += f"{i[0], }"
-                
+                count = 0
                 if results['total'] != 0:
                     #i[0] = [i[0], [0]]
                         # Show the results
                     
                     #print('Results found: {}'.format(results['total']))
                     #data_info = ""
-                    count = 0
+                    
                     for result in results['matches']:
                         if count > 0:
                             j.append([["", None], i[1], i[2]])
                         j[count][0][1] = json.dumps(result)
                         j[count][0][0] += result['data'] + "\n"
-                        print(type(j[count][0][1]))
+                        #print(type(j[count][0][1]))
                         #print(data_info)
                         #r_data = json.dumps(result, indent=4)
                         #print("This is r_data", r_data)
                         #print('')
                         count += 1
-                        print(j)
+                        #print(j)
                     i = j
                     #i[0] = data_info
                     #print(i[0])
                 else:
-                    j[0][0][0] = "No info in shodan"
+                    j[count][0][0] = "No info in shodan"
                 info_list.append(i)
                 i = j
                 #print(len(info_list))

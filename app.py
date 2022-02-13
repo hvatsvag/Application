@@ -3,7 +3,7 @@ from multiprocessing.connection import Client
 from socket import timeout
 import PySimpleGUI as sg
 from setup_db import create_connection, add_source, get_text_content, collect_stix_info, add_spacy, delete_entry_content, \
-    clean_spacy_list, get_all_label_spacy, clean_content_list, get_ipv4_spacy, add_shodan, add_snort, insert_snort_info
+    clean_spacy_list, get_all_label_spacy, clean_content_list, get_ipv4_spacy, add_shodan, add_snort, insert_snort_info, get_text_content_spacy2
 import sqlite3
 from cabby import create_client
 import stix2viz
@@ -35,10 +35,11 @@ def shodan_program():
         if event == sg.WIN_CLOSED:
             break
         if event == 'Test IPv4 in Shodan':
-            for i in range(100):
+            for i in range(100000):
                 print("trying Shodan")
                 list_ipv4 = get_ipv4_spacy(conn, 'ipv4')
                 info_list = check_ipv4(list_ipv4)
+                print(len(info_list))
                 add_shodan(conn, info_list)
             window['-SHODAN_OUT-'].update("IPv4's tested")
     
@@ -57,8 +58,9 @@ def poll_max():
         if event == sg.WIN_CLOSED:
             break
         if event == 'Poll maximum from all available collections':
+            print(COLLECTIONS)
             for j in COLLECTIONS:
-                collect_stix_info(conn, CLIENT, j.name, 10000000)
+                collect_stix_info(conn, CLIENT, j.name, 100000000)
             window['-POLL_OUT-'].update('Polled up to 1000000 from each collection')
 
     window.close()
@@ -76,15 +78,65 @@ def run_spacy():
             break
         
         if event == 'Run spacy on stix files':
-            for i in range(5):
+            for i in range(1):
                 print('Getting 2000 stix files for spacy')
                 content_list = get_text_content(conn)
+                processed_stix_files = 0
+                while (processed_stix_files + 1000) < len(content_list):
+                    
+                    print("Inside While loop")
+                    list_slice = content_list[processed_stix_files:(processed_stix_files + 1000)]
+                    print(f"Length of listslice is {len(list_slice)}")
+                    print(f"Processing stix fil {processed_stix_files} to {(processed_stix_files + 1000)} in range {len(content_list)}")
+                    list_of_entrys = find_relevant_spacy_stix(list_slice)
+                    if list_of_entrys != None:
+                        for j in list_of_entrys:
+                            for ent in j[0].ents:
+                                if ent.label_ == "transport":
+                                    add_spacy(conn, ent.text, ent.label_, (j[1]))
+                            for k in j[2]:
+                                add_spacy(conn, k[1], k[0], (j[1]))
+                    processed_stix_files += 1000
+                list_slice = content_list[processed_stix_files:]
+                if len(list_slice) > 0:
+                    print("inside if statement")
+                    print(f"Length of listslice is {len(list_slice)}")
+                    print(f"Processing stix fil {processed_stix_files} to {len(content_list)} in range {len(content_list)}")
+                    list_of_entrys = find_relevant_spacy_stix(list_slice)
+                    if list_of_entrys != None:
+                        for j in list_of_entrys:
+                            for ent in j[0].ents:
+                                if ent.label_ == "transport":
+                                    add_spacy(conn, ent.text, ent.label_, (j[1]))
+                            for k in j[2]:
+                                add_spacy(conn, k[1], k[0], (j[1]))
+            #clean_spacy_list(conn)
+            window['-SPACY_OUT-'].update('Spacy worked trough up to 250 000 files')
+
+def run_spacy2():
+    layout = [
+        [sg.Button('Run spacy on stix files'), sg.Text(key='-SPACY_OUT-')]
+    ]
+
+    window = sg.Window('For spacy', layout)
+
+    while True:
+        event, value = window.read(timeout=100)
+        if event == sg.WIN_CLOSED:
+            break
+        
+        if event == 'Run spacy on stix files':
+            for i in range(1):
+                print('Getting 2000 stix files for spacy')
+                content_list = get_text_content_spacy2(conn)
                 list_of_entrys = find_relevant_spacy_stix(content_list)
                 if list_of_entrys != None:
                     for j in list_of_entrys:
                         for ent in j[0].ents:
-                            if ent.text != "rules.emergingthreats.net" and ent.label_ != "DATE":
+                            if ent.label_ == "transport":
                                 add_spacy(conn, ent.text, ent.label_, (j[1]))
+                        for k in j[2]:
+                            add_spacy(conn, k[1], k[0], (j[1]))
             clean_spacy_list(conn)
             window['-SPACY_OUT-'].update('Spacy worked trough up to 250 000 files')
            
@@ -101,7 +153,8 @@ def main_program():
         [sg.Button('Discover services'), sg.Text(key='-DISCOVER_OUTPUT-')],
         [sg.Button('Get collections'), sg.Text(key='-COLLECTIONS_OUTPUT-')],
         [sg.Button('Store sources'), sg.Text(key='-STORE_SOURCES-')],
-        [sg.Button('Print IPv4 shodan')],
+        [sg.Button('Poll lots'), sg.Text(key='-POLL_LOTS-')],
+        [sg.Button('Run shodan with IPv4 search')],
         [sg.Button('Try Snort'), sg.Text(key='-TRY_SNORT-')],
         [sg.Button('Poll many')],
         [sg.Button('Run spacy')]
@@ -182,10 +235,13 @@ def main_program():
                 added_source += i.name + '\n'
             window['-STORE_SOURCES-'].update(added_source)
 
+        elif event == 'Poll lots':
+            for j in COLLECTIONS:
+                collect_stix_info(conn, CLIENT, j.name, 100000000)
+            window['-POLL_LOTS-'].update('Polled up to 1000000 from each collection')
 
 
-
-        elif event == 'Print IPv4 shodan':
+        elif event == 'Run shodan with IPv4 search':
             p2.start()
 
         elif event == 'Poll many':
