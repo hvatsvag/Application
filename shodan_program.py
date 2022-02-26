@@ -15,7 +15,7 @@ def check_ipv4(list):#, filter_type):
     if list != None:
         try:
             for i in list:
-                j = [[["", None], i[1], i[2]]]
+                j = [[["", None, ""], i[1], i[2]]]
             
                     # Search Shodan
                 results = api.search(i[0])
@@ -27,14 +27,15 @@ def check_ipv4(list):#, filter_type):
                     #i[0] = [i[0], [0]]
                         # Show the results
                     
-                    #print('Results found: {}'.format(results['total']))
+                    print("Got a hit on IP address", i[0])
                     #data_info = ""
                     
                     for result in results['matches']:
                         if count > 0:
-                            j.append([["", None], i[1], i[2]])
+                            j.append([["", None, i[0]], i[1], i[2]])
                         j[count][0][1] = json.dumps(result)
                         j[count][0][0] += result['data'] + "\n"
+                        j[count][0][2] = i[0]
                         #print(type(j[count][0][1]))
                         #print(data_info)
                         #r_data = json.dumps(result, indent=4)
@@ -46,11 +47,13 @@ def check_ipv4(list):#, filter_type):
                     #i[0] = data_info
                     #print(i[0])
                 else:
+                    #print("no info, the result is", results)
                     j[count][0][0] = "No info in shodan"
+                    j[count][0][2] = i[0]
                 info_list.append(i)
                 i = j
                 #print(len(info_list))
-                time.sleep(1)
+                time.sleep(0.2)
                 #print("i in loop is", i)
                 #print("after one loop list is", list)
                 list[count_list] = i
