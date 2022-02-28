@@ -83,7 +83,7 @@ def find_relevant_spacy_list(list_of_stuff):
         {"TEXT": ":"},
         {"TEXT": "{"},
         {"IS_ASCII": True, "OP": "+"},
-        {"TEXT": "}"}
+        {"TEXT": "}", "OP": "?"}
     ]
     matcher = Matcher(nlp.vocab)
     matcher.add("ipv4", [patterns_matcher])

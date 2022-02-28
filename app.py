@@ -36,11 +36,11 @@ def shodan_program():
         if event == sg.WIN_CLOSED:
             break
         if event == 'Test IPv4 in Shodan':
-            for i in range(100000):
-                print("trying Shodan")
+            for i in range(10000):
+                #print("trying Shodan")
                 list_ipv4 = get_ipv4_spacy(conn, 'ipv4')
                 info_list = check_ipv4(list_ipv4)
-                print(len(info_list))
+                #print(len(info_list))
                 add_shodan(conn, info_list)
             window['-SHODAN_OUT-'].update("IPv4's tested")
     
@@ -155,7 +155,7 @@ def run_spacy2():
             break
         
         if event == 'Run spacy on stix files, where IP addresses are active':
-            for i in range(5):
+            for i in range(1):
                 print('Getting all stix files for spacy2')
                 content_list = get_text_content_spacy2(conn)
                 processed_stix_files = 0
@@ -168,12 +168,29 @@ def run_spacy2():
                     list_of_entrys = find_relevant_spacy_stix(list_slice)
                     if list_of_entrys != None:
                         for j in list_of_entrys:
+                            ports = {}
                             for ent in j[0].ents:
                                 if ent.label_ == "transport":
                                     add_spacy2(conn, ent.text, ent.label_, (j[1]))
                             for k in j[2]:
-                                if k[0] != "URL":
+                                if k[0] == "Port" or k[0] == "Ports" or k[0] == "ipv4 and port":
+                                    replacing = "}{,"
+                                    info = k[1]
+                                    for l in replacing:
+                                        info = info.replace(l, "")
+                                    info = info.split(":")
+                                    for l in info:
+                                        l = l.split()
+                                        for m in l:
+                                            try:
+                                                trynum = int(m)
+                                                add_spacy2(conn, m, "Port", j[1])
+                                                ports[m] = m
+                                            except:
+                                                pass
+                                elif k[0] != "URL":
                                     add_spacy2(conn, k[1], k[0], (j[1]))
+
                     processed_stix_files += 1000
                     time.sleep(100)
                 list_slice = content_list[processed_stix_files:]
@@ -184,11 +201,27 @@ def run_spacy2():
                     list_of_entrys = find_relevant_spacy_stix(list_slice)
                     if list_of_entrys != None:
                         for j in list_of_entrys:
+                            ports = {}
                             for ent in j[0].ents:
                                 if ent.label_ == "transport":
                                     add_spacy2(conn, ent.text, ent.label_, (j[1]))
                             for k in j[2]:
-                                if k[0] != "URL":
+                                if k[0] == "Port" or k[0] == "Ports" or k[0] == "ipv4 and port":
+                                    replacing = "}{,"
+                                    info = k[1]
+                                    for l in replacing:
+                                        info = info.replace(l, "")
+                                    info = info.split(":")
+                                    for l in info:
+                                        l = l.split()
+                                        for m in l:
+                                            try:
+                                                trynum = int(m)
+                                                add_spacy2(conn, m, "Port", j[1])
+                                                ports[m] = m
+                                            except:
+                                                pass
+                                elif k[0] != "URL":
                                     add_spacy2(conn, k[1], k[0], (j[1]))
             #clean_spacy_list(conn)
             window['-SPACY_OUT-'].update('Spacy worked trough up to 250 000 files')

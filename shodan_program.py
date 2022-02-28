@@ -53,7 +53,7 @@ def check_ipv4(list):#, filter_type):
                 info_list.append(i)
                 i = j
                 #print(len(info_list))
-                time.sleep(0.2)
+                time.sleep(0.9)
                 #print("i in loop is", i)
                 #print("after one loop list is", list)
                 list[count_list] = i
