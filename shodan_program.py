@@ -59,6 +59,8 @@ def check_ipv4(list):#, filter_type):
                 list[count_list] = i
                 #print("after one and other insert loop list is", list)
                 count_list += 1    
+                if count_list % 10 == 0:
+                    print(f"Showdan has searched {count_list} IP addresses")
         except:
             pass   
             #print(try_list)

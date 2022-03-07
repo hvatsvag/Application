@@ -60,7 +60,7 @@ sql_create_content_failed_table = """CREATE TABLE IF NOT EXISTS content_failed (
 
 sql_create_spacy_table = """CREATE TABLE IF NOT EXISTS spacy (
                                 info_id INTeger PRIMARY KEY autoincrement,
-                                info varchar(255) not null unique,
+                                info varchar(255) not null,
                                 info_label varchar(255) not null,
                                 content_id integen not null,
                                 foreign key (content_id) references content (content_id)
@@ -207,7 +207,7 @@ def add_shodan(conn, info_list):
                 #print(type(j[0][1]), "This is the type inserted")  
         conn.commit()                          
     except:
-                
+        conn.commit()     
         #print(e)
         pass
         '''
@@ -301,16 +301,16 @@ def get_ipv4_spacy(conn, label):
             #print("test = ", test)
         sql = ""
         if test != None:
-            sql = 'select info, info_id from spacy where info_label=(?) and info_id not in (select distinct(spacy_id) from shodan) limit 10'
+            sql = 'select info, info_id from spacy where info_label=(?) and info not in (select distinct(info_spacy) from shodan) limit 1 '
         else:
-            sql = 'select info, info_id from spacy where info_label=(?) limit 10'
+            sql = 'select info, info_id from spacy where info_label=(?) limit 1'
         cur.execute(sql, (label,))
         for row in cur:
             (info, info_id) = row
             list_of_info.append([info, label, info_id])
         return list_of_info
-    except Error as e:
-        print(e)    
+    except:
+        pass    
 
 def get_ipv4_spacy2(conn, label):
     
@@ -334,8 +334,8 @@ def get_ipv4_spacy2(conn, label):
             (info, info_id) = row
             list_of_info.append([info, label, info_id])
         return list_of_info
-    except Error as e:
-        print(e)   
+    except:
+        pass   
 
 def get_all_label_spacy(conn, description):
     try:
@@ -492,11 +492,13 @@ def collect_stix_info(conn, client, source_name, NUMBER):
 
         #print(f"the highest id is {highest_id} and the source_name is {source_name}")
 
-        #newest_date = get_name_content(conn, highest_id)
+        newest_date = get_name_content(conn, highest_id)
         #print(f"newest date is {newest_date} and the source_name is {source_name}")
 
         
         content_blocks = client.poll(collection_name=source_name)#, begin_date=newest_date)
+        if source_name == "user_AlienVault":
+            content_blocks = client.poll(collection_name=source_name, begin_date=newest_date)
 
         NUMBER_OF_MSGS = NUMBER
         tmp_cnt_msg = 0
@@ -566,11 +568,11 @@ def insert_snort_info(conn):
     # First, fint the amount of IPv4 addresses that need to be put into the snort table
     number = 0
     try:
-        cur.execute('select count(distinct(spacy_id)) from shodan where info not in ("No info in shodan", "0")')
+        cur.execute('select count(distinct(info_spacy)) from shodan where info not in ("No info in shodan", "0")')
         for row in cur:
             (result, ) = row
             number = int(result)
-        cur.execute('select count(*) from snort')
+        cur.execute('select count(distinct(ipv4_src)) from snort')
         for row in cur:
             (result, ) = row
             number -= int(result)
@@ -586,9 +588,9 @@ def insert_snort_info(conn):
                 (sid, ) = row
                 result = sid
             if result != None:
-                sql =' select info, content_id, info_id from spacy2 where info in (select distinct(info_spacy) from shodan where info not in ("No info in shodan", "0") and info_spacy not in (select ipv4_src from snort) limit 1) '
+                sql =' select info, content_id, info_id from spacy where info in (select distinct(info_spacy) from shodan where info not in ("No info in shodan", "0") and info_spacy not in (select ipv4_src from snort) limit 1) '
             else:
-                sql = ' select info, content_id, info_id from spacy2 where info in (select distinct(info_spacy) from shodan where info not in ("No info in shodan", "0") limit 1)'
+                sql = ' select info, content_id, info_id from spacy where info in (select distinct(info_spacy) from shodan where info not in ("No info in shodan", "0") limit 1)'
             cur.execute(sql)
             cid = ""
             ipv4_src = ""
@@ -639,7 +641,7 @@ def setup():
         create_table(conn, sql_create_source_table)
         create_table(conn, sql_create_content_table)
         create_table(conn, sql_create_spacy_table)
-        create_table(conn, sql_create_content_failed_table)
+        #create_table(conn, sql_create_content_failed_table)
         create_table(conn, sql_create_shodan_table)
         create_table(conn, sql_create_snort_table)
         create_table(conn, sql_create_spacy2_table)

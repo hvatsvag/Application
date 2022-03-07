@@ -32,11 +32,9 @@ def find_relevant_spacy_list(list_of_stuff):
     
     nlp = spacy.load("en_core_web_sm")
     ruler = nlp.add_pipe("entity_ruler", before="ner")
+    transport_protocol = ["tcp", "TCP", "icmp", "ICMP", "udp", "UDP"]
     patterns_ruler = [
-        {"label": "transport", "pattern": "tcp"},
-        #{"label": "transport", "pattern": "ip"},
-        {"label": "transport", "pattern": "icmp"},
-        {"label": "transport", "pattern": "udp"}
+        {"label": "transport", "pattern": protocol} for protocol in transport_protocol
     ]
 
     ruler.add_patterns(patterns_ruler)
@@ -52,22 +50,22 @@ def find_relevant_spacy_list(list_of_stuff):
     octet_rx = r'(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)'
     patterns_matcher = [{"TEXT": {"REGEX": r"^{0}(?:\.{0}){{3}}$".format(octet_rx)}},]
     patterns_matcher2 = [
-        {"ORTH": "MD5"},
-        {"ORTH": ":"},
+        {"TEXT": "MD5"},
+        {"TEXT": ":"},
         #{"TEXT": {"REGEX": r"^[0-9a-fA-F]{32}$"}},
         {"IS_ASCII": True}
         #{"ORTH": ","}
     ]
     patterns_matcher3 = [
-        {"ORTH": "SHA-256"},
-        {"ORTH": ":"},
+        {"TEXT": "SHA-256"},
+        {"TEXT": ":"},
         {"ORTH": "None", "OP": "!"},
         {"IS_ASCII": True}
         #{"ORTH": "."}
     ]
 
     patterns_matcher4 = [
-        {"LIKE_URL": True},
+        {"LIKE_URL": True, "OP": "+"},
         #{"ORTH": "http://vxvault", "OP": "!"}
         ]
     patterns_matcher5 = [
@@ -75,7 +73,7 @@ def find_relevant_spacy_list(list_of_stuff):
         {"TEXT": {"REGEX": r"[0-9]{2}?"}, "OP": "+"}
     ]
     patterns_matcher6 = [
-        {"ORTH": "Port"},
+        {"TEXT": "Port"},
         {"TEXT": {"REGEX": r"[0-9]{2}?"}, "OP": "+"}
     ]
     patterns_matcher7 = [
@@ -139,6 +137,11 @@ def find_relevant_spacy_list(list_of_stuff):
         
         # Use relevant info
 
+        relevant_info = relevant_info.replace("'", " ' ")
+        relevant_info = relevant_info.replace("[", "[ ")
+        relevant_info = relevant_info.replace("]", " ]")
+        relevant_info = relevant_info.replace(",", " , ")
+
         doc = nlp(relevant_info)
         matches = matcher(doc)
         new_matches = []
@@ -173,11 +176,9 @@ def find_relevant_spacy_stix(list_of_stuff):
     #print(len(list_of_stuff))
     nlp = spacy.load("en_core_web_sm")
     ruler = nlp.add_pipe("entity_ruler", before="ner")
+    transport_protocol = ["tcp", "TCP", "icmp", "ICMP", "udp", "UDP"]
     patterns_ruler = [
-        {"label": "transport", "pattern": "tcp"},
-        #{"label": "transport", "pattern": "ip"},
-        {"label": "transport", "pattern": "icmp"},
-        {"label": "transport", "pattern": "udp"}
+        {"label": "transport", "pattern": protocol} for protocol in transport_protocol
     ]
 
     ruler.add_patterns(patterns_ruler)
@@ -189,45 +190,17 @@ def find_relevant_spacy_stix(list_of_stuff):
     
     octet_rx = r'(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)'
     patterns_matcher = [{"TEXT": {"REGEX": r"^{0}(?:\.{0}){{3}}$".format(octet_rx)}},]
-    patterns_matcher2 = [
-        {"ORTH": "MD5"},
-        {"ORTH": ":"},
-        #{"TEXT": {"REGEX": r"^[0-9a-fA-F]{32}$"}},
-        {"IS_ASCII": True}
-        #{"ORTH": ","}
-    ]
-    patterns_matcher3 = [
-        {"ORTH": "SHA-256"},
-        {"ORTH": ":"},
-        {"ORTH": "None", "OP": "!"},
-        {"IS_ASCII": True}
-        #{"ORTH": "."}
-    ]
-
-    patterns_matcher4 = [
-        {"LIKE_URL": True},
-        #{"ORTH": "http://vxvault", "OP": "!"}
-        ]
-    patterns_matcher5 = [
-        {"TEXT": {"REGEX": r"^{0}(?:\.{0}){{3}}$".format(octet_rx)}},
-        {"TEXT": {"REGEX": r"[0-9]{2}?"}, "OP": "+"}
-    ]
-    patterns_matcher6 = [
-        {"ORTH": "Port"},
-        {"TEXT": {"REGEX": r"[0-9]{2}?"}, "OP": "+"}
-    ]
-    patterns_matcher7 = [
-        {"TEXT": "Ports"},
-        {"TEXT": ":"},
-        {"TEXT": "{"},
-        {"IS_ASCII": True, "OP": "+"},
-        {"TEXT": "}"}
-    ]
+    patterns_matcher2 = [{"TEXT": "MD5"}, {"TEXT": ":"}, {"IS_ASCII": True}]
+    patterns_matcher3 = [{"TEXT": "SHA-256"}, {"TEXT": ":"}, {"ORTH": "None", "OP": "!"}, {"IS_ASCII": True}]
+    #patterns_matcher4 = [{"LIKE_URL": True}]
+    patterns_matcher5 = [{"TEXT": {"REGEX": r"^{0}(?:\.{0}){{3}}$".format(octet_rx)}}, {"TEXT": {"REGEX": r"[0-9]{2}?"}, "OP": "+"}]
+    patterns_matcher6 = [{"ORTH": "Port"}, {"TEXT": {"REGEX": r"[0-9]{2}?"}, "OP": "+"}]
+    patterns_matcher7 = [{"TEXT": "Ports"}, {"TEXT": ":"}, {"TEXT": "{"}, {"IS_ASCII": True, "OP": "+"}, {"TEXT": "}"}]
     matcher = Matcher(nlp.vocab)
     matcher.add("ipv4", [patterns_matcher])
     matcher.add("MD5", [patterns_matcher2])
     matcher.add("SHA-256", [patterns_matcher3])
-    matcher.add("URL", [patterns_matcher4])
+    #matcher.add("URL", [patterns_matcher4])
     matcher.add("ipv4 and port", [patterns_matcher5])
     matcher.add("Port", [patterns_matcher6])
     matcher.add("Ports", [patterns_matcher7])
@@ -237,11 +210,12 @@ def find_relevant_spacy_stix(list_of_stuff):
         #print(type(i[0]))
         #print(i[0])
         information = str(i[0].decode())
-        information = information.replace("<", " <")
-        information = information.replace(">", "> ")
-        information = information.replace("'", " ")
+        information = information.replace("'", " ' ")
         information = information.replace("[", "[ ")
         information = information.replace("]", " ]")
+        information = information.replace(",", " , ")
+        information = information.replace("<", " <")
+        information = information.replace(">", "> ")
         doc = nlp(information)
         new_matches = []
         matches = matcher(doc)

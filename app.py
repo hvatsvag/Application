@@ -2,6 +2,7 @@ from http import client
 from multiprocessing.connection import Client
 from socket import timeout
 import PySimpleGUI as sg
+import spacy
 from setup_db import create_connection, add_source, get_text_content, collect_stix_info, add_spacy, delete_entry_content, \
     clean_spacy_list, get_all_label_spacy, clean_content_list, get_ipv4_spacy, add_shodan, add_snort, insert_snort_info, get_text_content_spacy2, \
     get_text_content_spacy2, add_spacy2, get_ipv4_spacy2
@@ -14,8 +15,9 @@ from spacy_prog import find_relevant_info, find_relevant_spacy, find_relevant_sp
 import time
 from shodan_program import check_ipv4, insert_snort
 from multiprocessing import Process
+from datetime import datetime, timedelta
  
-
+ACTIVE_TIME = None
 CLIENT = None
 SERVICES = None
 COLLECTIONS = None
@@ -23,6 +25,74 @@ COLLECTIONS = None
 database = r"./database.db"
 
 conn = create_connection(database)
+
+def total_run():
+    layout = [
+        [sg.Button('Run Spacy, Showdan and Snort rule maker'), sg.Text(key='-Program done running-')]
+    ]
+
+    window = sg.Window('For total run on STIX files', layout)
+
+    while True:
+        event, value = window.read(timeout=100)
+        if event == sg.WIN_CLOSED:
+            break
+        if event == 'Run Spacy, Showdan and Snort rule maker':
+            
+            content_list = get_text_content(conn)
+            processed_stix_files = 0
+            while processed_stix_files < len(content_list):
+                found_info = False
+                count_entrys = 0
+                list_slice = []
+                if (processed_stix_files + 1000) <= len(content_list):
+                    list_slice = content_list[processed_stix_files:(processed_stix_files + 1000)]
+                else:
+                    list_slice = content_list[processed_stix_files:]
+                list_of_entrys = find_relevant_spacy_list(list_slice)
+                if list_of_entrys != None:
+                    for j in list_of_entrys:
+                        count_entrys += 1
+                        ports = {}
+                        for ent in j[0].ents:
+                            if ent.label_ == "transport":
+                                add_spacy(conn, ent.text, ent.label_, (j[1]))
+                                found_info = True
+                        for k in j[2]:
+                            if k[0] == "Port" or k[0] == "Ports" or k[0] == "ipv4 and port":
+                                replacing = "}{,"
+                                info = k[1]
+                                for l in replacing:
+                                    info = info.replace(l, "")
+                                info = info.split(":")
+                                for l in info:
+                                    l = l.split()
+                                    for m in l:
+                                        try:
+                                            trynum = int(m)
+                                            add_spacy(conn, m, "Port", j[1])
+                                            found_info = True
+                                            ports[m] = m
+                                        except:
+                                            pass
+                            elif k[0] != "URL":
+                                add_spacy(conn, k[1], k[0], (j[1]))
+                                found_info = True
+                                
+                        if found_info == False and count_entrys == len(list_of_entrys):
+                            add_spacy(conn, "no info found for 1000 entrys", "No info", j[1])
+                print("Done with Spacy")
+                processed_stix_files += len(list_slice)            
+                print("Starting with Shodan")
+                spacy_list = 10
+                while spacy_list != 0:
+                    list_ipv4 = get_ipv4_spacy(conn, 'ipv4')
+                    info_list = check_ipv4(list_ipv4)
+                    add_shodan(conn, info_list)
+                    spacy_list = len(info_list)
+                print("Inserting to Snort")
+                insert_snort_info(conn)
+                print("Done with snort")
 
 def shodan_program():
     layout = [
@@ -36,12 +106,16 @@ def shodan_program():
         if event == sg.WIN_CLOSED:
             break
         if event == 'Test IPv4 in Shodan':
-            for i in range(10000):
+            count = 0
+            for_range = 1000
+            for i in range(for_range):
                 #print("trying Shodan")
                 list_ipv4 = get_ipv4_spacy(conn, 'ipv4')
                 info_list = check_ipv4(list_ipv4)
                 #print(len(info_list))
                 add_shodan(conn, info_list)
+                count += 1
+                print(f"done running {count} of {for_range} in showdan for loop")
             window['-SHODAN_OUT-'].update("IPv4's tested")
     
     window.close()
@@ -120,11 +194,28 @@ def run_spacy():
                     list_of_entrys = find_relevant_spacy_list(list_slice)
                     if list_of_entrys != None:
                         for j in list_of_entrys:
+                            ports = {}
                             for ent in j[0].ents:
                                 if ent.label_ == "transport":
                                     add_spacy(conn, ent.text, ent.label_, (j[1]))
                             for k in j[2]:
-                                add_spacy(conn, k[1], k[0], (j[1]))
+                                if k[0] == "Port" or k[0] == "Ports" or k[0] == "ipv4 and port":
+                                    replacing = "}{,"
+                                    info = k[1]
+                                    for l in replacing:
+                                        info = info.replace(l, "")
+                                    info = info.split(":")
+                                    for l in info:
+                                        l = l.split()
+                                        for m in l:
+                                            try:
+                                                trynum = int(m)
+                                                add_spacy(conn, m, "Port", j[1])
+                                                ports[m] = m
+                                            except:
+                                                pass
+                                elif k[0] != "URL":
+                                    add_spacy(conn, k[1], k[0], (j[1]))
                     processed_stix_files += 1000
                 list_slice = content_list[processed_stix_files:]
                 if len(list_slice) > 0:
@@ -134,11 +225,28 @@ def run_spacy():
                     list_of_entrys = find_relevant_spacy_list(list_slice)
                     if list_of_entrys != None:
                         for j in list_of_entrys:
+                            ports = {}
                             for ent in j[0].ents:
                                 if ent.label_ == "transport":
                                     add_spacy(conn, ent.text, ent.label_, (j[1]))
                             for k in j[2]:
-                                add_spacy(conn, k[1], k[0], (j[1]))
+                                if k[0] == "Port" or k[0] == "Ports" or k[0] == "ipv4 and port":
+                                    replacing = "}{,"
+                                    info = k[1]
+                                    for l in replacing:
+                                        info = info.replace(l, "")
+                                    info = info.split(":")
+                                    for l in info:
+                                        l = l.split()
+                                        for m in l:
+                                            try:
+                                                trynum = int(m)
+                                                add_spacy(conn, m, "Port", j[1])
+                                                ports[m] = m
+                                            except:
+                                                pass
+                                elif k[0] != "URL":
+                                    add_spacy(conn, k[1], k[0], (j[1]))
             #clean_spacy_list(conn)
             window['-SPACY_OUT-'].update('Spacy worked trough up to 250 000 files')
 
@@ -242,6 +350,7 @@ def main_program():
         [sg.Button('Run shodan with IPv4 search')],
         [sg.Button('Run shodan with IPv4 search spacy2')],
         [sg.Button('Try Snort'), sg.Text(key='-TRY_SNORT-')],
+        [sg.Button('Total run')],
         [sg.Button('Poll many')],
         [sg.Button('Run spacy')],
         [sg.Button('Run spacy2')]
@@ -250,8 +359,9 @@ def main_program():
 
 
     window = sg.Window('The program', layout)
-
+    ACTIVE_TIME = datetime.now()
     while True:
+        
         event, value = window.read(timeout=100)
         if event == sg.WIN_CLOSED:
             break
@@ -343,6 +453,9 @@ def main_program():
         elif event == 'Run spacy2':
             p5.start()
 
+        elif event == 'Total run':
+            p7.start()
+
         elif event == 'Try Snort':
             '''
             info = {
@@ -356,6 +469,10 @@ def main_program():
             
             insert_snort_info(conn)
             window['-TRY_SNORT-'].update(f"Tried to update Snort")
+        
+        elif datetime.now() > (ACTIVE_TIME + timedelta(minutes=2)):
+            print("Two minuts has passed")
+            ACTIVE_TIME = datetime.now()
 
 
 
@@ -369,6 +486,7 @@ p3 = Process(target=poll_max)
 p4 = Process(target=run_spacy)
 p5 = Process(target=run_spacy2)
 p6 = Process(target=shodan_program_spacy2)
+p7 = Process(target=total_run)
 
 if __name__ == "__main__":
     p1.start()
