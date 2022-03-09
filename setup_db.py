@@ -264,7 +264,7 @@ def add_snort(conn, ipv4, msg, content_id, port_src="any", protocol="any", desti
             #print(info)
             
             insert_snort(info)
-            info["sid"] = str(int(info["sid"]) + 1)
+            #info["sid"] = str(int(info["sid"]) + 1)
             conn.commit()
     except:
         
@@ -365,9 +365,9 @@ def get_text_content(conn):
             #print("test = ", test)
         sql = ""
         if test == None:
-            sql = "select content_text, content_id from content WHERE content_id not in (select content_id from spacy) limit 200000"
+            sql = "select content_text, content_id from content WHERE content_id not in (select content_id from spacy) limit 1000000"
         else:
-            sql = "select content_text, content_id from content WHERE content_id > (select max(content_id) from spacy) limit 200000"
+            sql = "select content_text, content_id from content WHERE content_id > (select max(content_id) from spacy) limit 1000000"
         
         #
         cur.execute(sql)
@@ -588,7 +588,7 @@ def insert_snort_info(conn):
                 (sid, ) = row
                 result = sid
             if result != None:
-                sql =' select info, content_id, info_id from spacy where info in (select distinct(info_spacy) from shodan where info not in ("No info in shodan", "0") and info_spacy not in (select ipv4_src from snort) limit 1) '
+                sql =' select info, content_id, info_id from spacy where info in (select distinct(info_spacy) from shodan where info not in ("No info in shodan", "0") and info_spacy not in (select ipv4_src from snort) ) limit 1 '
             else:
                 sql = ' select info, content_id, info_id from spacy where info in (select distinct(info_spacy) from shodan where info not in ("No info in shodan", "0") limit 1)'
             cur.execute(sql)
@@ -603,18 +603,18 @@ def insert_snort_info(conn):
                 ipv4_src = info
                 spacy_id = info_id
             msg = f"Alert, this ip {ipv4_src} has been found malicios, se STIX file {cid}"
-            sql = ('select info, info_label from spacy2 where content_id=(?)')
+            sql = ('select info, info_label from spacy where content_id=(?)')
             cur.execute(sql, (cid,))
             ports_dict = {}
             ports_list = "["
-            ip_transport = []
+            ip_transport = {}
             ip_protocol = ""
             for row in cur:
                 (info, info_label) = row
                 if info_label == "Port":
                     ports_dict[info] = info
                 elif info_label == "transport":
-                    ip_transport.append(info)
+                    ip_transport[info] = info
                 #additional_info = {additional_info}
             for i in ports_dict:
                 ports_list += f"{ports_dict[i]},"
@@ -645,7 +645,7 @@ def setup():
         create_table(conn, sql_create_shodan_table)
         create_table(conn, sql_create_snort_table)
         create_table(conn, sql_create_spacy2_table)
-        #insert_snort_info(conn)
+        insert_snort_info(conn)
         conn.close()
 
 

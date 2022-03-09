@@ -64,12 +64,13 @@ def find_relevant_spacy_list(list_of_stuff):
         #{"ORTH": "."}
     ]
 
-    patterns_matcher4 = [
-        {"LIKE_URL": True, "OP": "+"},
+    #patterns_matcher4 = [
+    #    {"LIKE_URL": True, "OP": "+"},
         #{"ORTH": "http://vxvault", "OP": "!"}
-        ]
+    #    ]
     patterns_matcher5 = [
         {"TEXT": {"REGEX": r"^{0}(?:\.{0}){{3}}$".format(octet_rx)}},
+        {"TEXT": ":", "OP": "?"},
         {"TEXT": {"REGEX": r"[0-9]{2}?"}, "OP": "+"}
     ]
     patterns_matcher6 = [
@@ -81,22 +82,25 @@ def find_relevant_spacy_list(list_of_stuff):
         {"TEXT": ":"},
         {"TEXT": "{"},
         {"IS_ASCII": True, "OP": "+"},
-        {"TEXT": "}", "OP": "?"}
+        {"TEXT": "}"}
     ]
+    
     matcher = Matcher(nlp.vocab)
     matcher.add("ipv4", [patterns_matcher])
     matcher.add("MD5", [patterns_matcher2])
     matcher.add("SHA-256", [patterns_matcher3])
-    matcher.add("URL", [patterns_matcher4])
+    #matcher.add("URL", [patterns_matcher4])
     matcher.add("ipv4 and port", [patterns_matcher5])
     matcher.add("Port", [patterns_matcher6])
     matcher.add("Ports", [patterns_matcher7])
     
+    
     initialize_options(options={"silent": True})
 
     
-    list_of_elevated_stuff, rest_list = try_elevate_options(list_of_stuff)
-
+    #list_of_elevated_stuff, rest_list = try_elevate_options(list_of_stuff)
+    rest_list = list_of_stuff
+    list_of_elevated_stuff = []
     counter = 0 
     
     for i in list_of_elevated_stuff:        
@@ -106,7 +110,7 @@ def find_relevant_spacy_list(list_of_stuff):
         relevant_info = ""
         if i[0] != None:
             json_info = json.loads(i[0])
-
+            print(json_info)
             
 
             # Finding relevant info
@@ -141,6 +145,7 @@ def find_relevant_spacy_list(list_of_stuff):
         relevant_info = relevant_info.replace("[", "[ ")
         relevant_info = relevant_info.replace("]", " ]")
         relevant_info = relevant_info.replace(",", " , ")
+        information = information.replace(":", " : ")
 
         doc = nlp(relevant_info)
         matches = matcher(doc)
@@ -152,13 +157,13 @@ def find_relevant_spacy_list(list_of_stuff):
                 
                 str_id = nlp.vocab.strings[match_id]
                 span = doc[start:end]
-                if span in span_list:
-                    continue
+                #if span in span_list:
+                #    continue
                 span_list.append(span)
-                #print("This is the matches", match_id, str_id, start, end, span.text)
+                print("This is the matches", match_id, str_id, start, end, span.text)
                 new_matches.append([f"{str_id}", f"{span.text}"])
             #print("Added to ruler")
-            entrys = nlp(relevant_info)
+            #entrys = nlp(relevant_info)
         #all_entries.append([entrys, i[1]], new_matches)
         #print("The lengt of all entrys is", len(all_entries), "Added", [doc, i[1]], new_matches)
         all_entries.append([doc, i[1], new_matches])
@@ -193,9 +198,15 @@ def find_relevant_spacy_stix(list_of_stuff):
     patterns_matcher2 = [{"TEXT": "MD5"}, {"TEXT": ":"}, {"IS_ASCII": True}]
     patterns_matcher3 = [{"TEXT": "SHA-256"}, {"TEXT": ":"}, {"ORTH": "None", "OP": "!"}, {"IS_ASCII": True}]
     #patterns_matcher4 = [{"LIKE_URL": True}]
-    patterns_matcher5 = [{"TEXT": {"REGEX": r"^{0}(?:\.{0}){{3}}$".format(octet_rx)}}, {"TEXT": {"REGEX": r"[0-9]{2}?"}, "OP": "+"}]
+    patterns_matcher5 = [{"TEXT": {"REGEX": r"^{0}(?:\.{0}){{3}}$".format(octet_rx)}}, {"TEXT": ":", "OP": "?"}, {"TEXT": {"REGEX": r"[0-9]{2}?"}, "OP": "+"}]
     patterns_matcher6 = [{"ORTH": "Port"}, {"TEXT": {"REGEX": r"[0-9]{2}?"}, "OP": "+"}]
-    patterns_matcher7 = [{"TEXT": "Ports"}, {"TEXT": ":"}, {"TEXT": "{"}, {"IS_ASCII": True, "OP": "+"}, {"TEXT": "}"}]
+    patterns_matcher7 = [
+        {"TEXT": "Ports"}, 
+        {"TEXT": ":"}, 
+        {"TEXT": "{"}, 
+        {"IS_ASCII": True, "OP": "+"}, 
+        {"TEXT": "}"}
+        ]
     matcher = Matcher(nlp.vocab)
     matcher.add("ipv4", [patterns_matcher])
     matcher.add("MD5", [patterns_matcher2])
@@ -216,6 +227,7 @@ def find_relevant_spacy_stix(list_of_stuff):
         information = information.replace(",", " , ")
         information = information.replace("<", " <")
         information = information.replace(">", "> ")
+        information = information.replace(":", " : ")
         doc = nlp(information)
         new_matches = []
         matches = matcher(doc)
@@ -229,7 +241,7 @@ def find_relevant_spacy_stix(list_of_stuff):
             if span in span_list:
                 continue
             span_list.append(span)
-            #print("This is the matches", match_id, str_id, start, end, span.text)
+            print("This is the matches", match_id, str_id, start, end, span.text)
             new_matches.append([f"{str_id}", f"{span.text}"])
              
         
@@ -394,10 +406,10 @@ def find_relevant_spacy(info):
         #{"ORTH": "."}
     ]
 
-    patterns_matcher4 = [
-        {"LIKE_URL": True},
+    #patterns_matcher4 = [
+    #    {"LIKE_URL": True},
         #{"ORTH": "http://vxvault", "OP": "!"}
-        ]
+    #    ]
 
     
     
@@ -407,7 +419,7 @@ def find_relevant_spacy(info):
     matcher.add("ipv4", [patterns_matcher])
     matcher.add("MD5", [patterns_matcher2])
     matcher.add("SHA-256", [patterns_matcher3])
-    matcher.add("URL", [patterns_matcher4])
+    #matcher.add("URL", [patterns_matcher4])
     matches = matcher(entrys)
     if len(matches) > 0:
         for match_id, start, end in matches:

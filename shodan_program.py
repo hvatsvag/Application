@@ -61,6 +61,8 @@ def check_ipv4(list):#, filter_type):
                 count_list += 1    
                 if count_list % 10 == 0:
                     print(f"Showdan has searched {count_list} IP addresses")
+        except shodan.APIError as e:
+            print('Error: {}'.format(e))
         except:
             pass   
             #print(try_list)
