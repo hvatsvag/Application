@@ -4,11 +4,16 @@ from shodan import Shodan
 from shodan.cli.helpers import get_api_key
 import time
 import json
+import asyncio
 
 
 api = shodan.Shodan('giaq9oOq9mtRdjzyXv17duRoa4TkR9Ib')
 
-def check_ipv4(list):#, filter_type):
+async def shodan_search(ipv4):
+    result = api.search(ipv4)
+    return result
+
+async def check_ipv4(list):#, filter_type):
     info_list = []
     try_list = "["
     count_list = 0
@@ -17,8 +22,13 @@ def check_ipv4(list):#, filter_type):
             for i in list:
                 j = [[["", None, ""], i[1], i[2]]]
             
-                    # Search Shodan
-                results = api.search(i[0])
+                # Search Shodan
+                #print("before task shodan")
+                task = asyncio.create_task(shodan_search(i[0]))
+                #print("after task shodan")
+                results = await task
+                #print("Got a result")
+                
                 #print("spacy_id is", i[0])
                 #print("This is the whole list", list)
                 try_list += f"{i[0], }"
@@ -53,7 +63,7 @@ def check_ipv4(list):#, filter_type):
                 info_list.append(i)
                 i = j
                 #print(len(info_list))
-                time.sleep(0.9)
+                await asyncio.sleep(0.9)
                 #print("i in loop is", i)
                 #print("after one loop list is", list)
                 list[count_list] = i
@@ -63,6 +73,7 @@ def check_ipv4(list):#, filter_type):
                     print(f"Showdan has searched {count_list} IP addresses")
         except shodan.APIError as e:
             print('Error: {}'.format(e))
+            print("the IP that caused the problem was", i[0])
         except:
             pass   
             #print(try_list)

@@ -1,11 +1,12 @@
 from http import client
+from msilib.schema import Error
 from multiprocessing.connection import Client
 from socket import timeout
 import PySimpleGUI as sg
 import spacy
 from setup_db import create_connection, add_source, get_text_content, collect_stix_info, add_spacy, delete_entry_content, \
     clean_spacy_list, get_all_label_spacy, clean_content_list, get_ipv4_spacy, add_shodan, add_snort, insert_snort_info, get_text_content_spacy2, \
-    get_text_content_spacy2, add_spacy2, get_ipv4_spacy2
+    get_text_content_spacy2, add_spacy2, get_highest_content, get_name_content, add_content, get_total_content
 import sqlite3
 from cabby import create_client
 import stix2viz
@@ -15,7 +16,10 @@ from spacy_prog import find_relevant_info, find_relevant_spacy, find_relevant_sp
 import time
 from shodan_program import check_ipv4, insert_snort
 from multiprocessing import Process
+import datetime
 from datetime import datetime, timedelta
+import asyncio
+
  
 ACTIVE_TIME = None
 CLIENT = None
@@ -26,12 +30,14 @@ database = r"./database.db"
 
 conn = create_connection(database)
 
-def spacy_processing(content_list):
+async def spacy_processing(content_list):
     
         found_info = False
         count_entrys = 0
         
-        list_of_entrys = find_relevant_spacy_list(content_list)
+        #list_of_entrys = find_relevant_spacy_list(content_list)
+        task = asyncio.create_task(find_relevant_spacy_stix(content_list))
+        list_of_entrys = await task
         if list_of_entrys != None:
             for j in list_of_entrys:
                 count_entrys += 1
@@ -39,9 +45,10 @@ def spacy_processing(content_list):
                 for ent in j[0].ents:
                     if ent.label_ == "transport":
                         add_spacy(conn, ent.text, ent.label_, (j[1]))
+                        #await asyncio.sleep(0.001)
                         found_info = True
                 for k in j[2]:
-                    if k[0] == "Port" or k[0] == "Ports" or k[0] == "ipv4 and port":
+                    if k[0] == "Port" or k[0] == "port" or k[0] == "Ports" or k[0] == "ipv4 and port":
                         replacing = "}{,"
                         info = k[1]
                         for l in replacing:
@@ -53,19 +60,41 @@ def spacy_processing(content_list):
                                 try:
                                     trynum = int(m)
                                     add_spacy(conn, m, "Port", j[1])
+                                    #await asyncio.sleep(0.001)
                                     found_info = True
                                     ports[m] = m
                                 except:
                                     pass
                     elif k[0] != "URL":
                         add_spacy(conn, k[1], k[0], (j[1]))
+                        #await asyncio.sleep(0.001)
                         found_info = True
                                 
                 if found_info == False and count_entrys == len(list_of_entrys):
                     add_spacy(conn, "no info found for 1000 entrys", "No info", j[1])
+                #await asyncio.sleep(0.00001)
+        #await asyncio.sleep(0.1)
 
 
-def total_run():
+async def async_spacy():
+    content_list = get_text_content(conn)
+    print("Length is ", len(content_list))
+    processed_stix_files = 0
+    for i in range(int(len(content_list) / 1000) + 1):
+            #while processed_stix_files < len(content_list):
+        list_slice = []
+        if (processed_stix_files + 1000) <= len(content_list):
+            list_slice = content_list[processed_stix_files:(processed_stix_files + 1000)]
+        else:
+            list_slice = content_list[processed_stix_files:]
+        task_spacy_process = asyncio.create_task(spacy_processing(list_slice))
+        processed_stix_files += len(list_slice)  
+        await task_spacy_process
+        print("Done with Spacy")        
+
+        await asyncio.sleep(1)
+
+async def total_run():
     layout = [
         [sg.Button('Run Spacy, Showdan and Snort rule maker'), sg.Text(key='-Program done running-')]
     ]
@@ -81,27 +110,19 @@ def total_run():
             content_list = get_text_content(conn)
             print("Length is ", len(content_list))
             processed_stix_files = 0
-            while processed_stix_files < len(content_list):
+            for i in range(int(len(content_list) / 100)):
                 list_slice = []
                 if (processed_stix_files + 100) <= len(content_list):
                     list_slice = content_list[processed_stix_files:(processed_stix_files + 100)]
                 else:
                     list_slice = content_list[processed_stix_files:]
-                spacy_processing(list_slice)
+                task_spacy_process = asyncio.create_task(spacy_processing(list_slice))
                 processed_stix_files += len(list_slice)  
+                await task_spacy_process
                 print("Done with Spacy")        
-                print("Starting with Shodan")
-                spacy_list = 10
-                while spacy_list != 0:
-                    list_ipv4 = get_ipv4_spacy(conn, 'ipv4')
-                    info_list = check_ipv4(list_ipv4)
-                    add_shodan(conn, info_list)
-                    spacy_list = len(info_list)
-                print("Inserting to Snort")
-                insert_snort_info(conn)
-                print("Done with snort")
+        await asyncio.sleep(1)
 
-def shodan_program():
+async def shodan_program():
     layout = [
         [sg.Button('Test IPv4 in Shodan'), sg.Text(key='-SHODAN_OUT-')]
     ]
@@ -126,6 +147,138 @@ def shodan_program():
             window['-SHODAN_OUT-'].update("IPv4's tested")
     
     window.close()
+
+async def async_shodan():
+    spacy_list = 10
+    while spacy_list != 0:
+        list_ipv4 = get_ipv4_spacy(conn, 'ipv4')
+        task_showdan = asyncio.create_task(check_ipv4(list_ipv4))
+        info_list = await task_showdan
+        add_shodan(conn, info_list)
+        spacy_list = len(list_ipv4)
+        #print(spacy_list)
+        await asyncio.sleep(0.001)
+
+async def get_clients():
+    
+    clients = []
+    
+    client1 = create_client(
+        'otx.alienvault.com',
+        use_https=True,
+        discovery_path='/taxii/discovery')
+    
+    collections1 = client1.get_collections()
+    client2 = create_client(
+        'open.taxiistand.com',
+        use_https=True,
+        discovery_path='/services/discovery')
+    collections2 = client2.get_collections()
+    for i in collections2:
+        if i.name == "vxvault":
+            collections2 = [i]
+    
+    
+    clients.append([client1, collections1
+    ])
+    clients.append([client2, collections2
+    ])
+    return clients
+'''
+async def poll_alienvault():
+    client = create_client(
+        'otx.alienvault.com',
+        use_https=True,
+        discovery_path='/taxii/discovery')
+    
+    client.get_collections()
+
+    highest_id = get_highest_content(conn, "user_AlienVault")
+    total_count = get_total_content(conn, "user_AlienVault")
+    if total_count == None:
+        total_count = 0
+    
+    newest_date = get_name_content(conn, highest_id)
+    print(f"newest date is {newest_date} and the source_name is user_AlienVault. The id is {highest_id}")
+    content_blocks = client.poll(collection_name="user_AlienVault", begin_date=newest_date)
+
+    NUMBER_OF_MSGS = 100
+    tmp_cnt_msg = 0
+    list_of_ents = []
+
+    for block in content_blocks:
+        cnt = block.content
+
+        if (tmp_cnt_msg) % 100 == 0:
+            print(f"getting block {tmp_cnt_msg} user_AlienVault with timestamp {block.timestamp}")
+            #await asyncio.sleep(0.001)
+        list_of_ents.append([str(block.timestamp), cnt, "user_AlienVault"])
+        tmp_cnt_msg += 1
+        if tmp_cnt_msg >= NUMBER_OF_MSGS:
+            print(f"Got {tmp_cnt_msg} files from user_AlienVault")
+            break
+        if len(list_of_ents) > 9:
+            for k in list_of_ents:
+                add_content(conn, k[0], k[1], k[2])
+            list_of_ents = []
+            await asyncio.sleep(0.001)
+    print("Done with", "user_AlienVault")
+    await asyncio.sleep(0.001)
+'''        
+
+
+async def auto_poll():
+    clients_task = asyncio.create_task(get_clients())
+    clients = await clients_task
+    for i in range(len(clients)):
+        await asyncio.sleep(0.001)
+        print("printing collections", clients[i][1])
+        for j in clients[i][1]:
+            try:
+                highest_id = get_highest_content(conn, j.name)
+                total_count = get_total_content(conn, j.name)
+                if total_count == None:
+                    total_count = 0
+                newest_date = get_name_content(conn, highest_id)
+                
+                print(f"newest date is {newest_date} and the source_name is {j.name}. The id is {highest_id}")
+                content_blocks = clients[i][0].poll(collection_name=j.name, begin_date=newest_date)
+                NUMBER_OF_MSGS = 50
+                tmp_cnt_msg = 0
+                list_of_ents = []
+                count_scipp = 0
+                for block in content_blocks:
+                    count_scipp += 1
+                    cnt = block.content
+                    
+                    if count_scipp % 1000 == 0:
+                        print("count is", count_scipp)
+                        await asyncio.sleep(0.001)
+                    if count_scipp <= total_count:
+                        continue
+                    if (tmp_cnt_msg) % 100 == 0:
+                        print(f"getting block {tmp_cnt_msg} {j.name} with timestamp {block.timestamp}")
+                        await asyncio.sleep(0.001)
+                    list_of_ents.append([str(block.timestamp), cnt, j.name])
+                    tmp_cnt_msg += 1
+                    if tmp_cnt_msg >= NUMBER_OF_MSGS:
+                        print(f"Got {tmp_cnt_msg} files from {j.name}")
+                        break
+
+                for k in list_of_ents:
+                    add_content(conn, k[0], k[1], k[2])
+                print("Done with", j.name)
+                await asyncio.sleep(0.001)
+            except:
+                pass
+            
+
+                
+    
+async def async_snort():
+    insert_snort_info(conn)
+    await asyncio.sleep(0.001)
+
 
 
 
@@ -240,7 +393,7 @@ def run_spacy():
 
 
 
-def main_program():
+async def main_program():
 
     layout = [
         [sg.Button('Create client taxiistand'), sg.Text(key='-CONNECT_OUTPUT-')],
@@ -253,7 +406,7 @@ def main_program():
         [sg.Button('Poll lots'), sg.Text(key='-POLL_LOTS-')],
         [sg.Button('Run shodan with IPv4 search')],
         [sg.Button('Try Snort'), sg.Text(key='-TRY_SNORT-')],
-        [sg.Button('Total run')],
+        [sg.Button('Total run'), sg.Text(key='-TOTAL_RUN-')],
         [sg.Button('Poll many')],
         [sg.Button('Run spacy')]
     ]
@@ -262,6 +415,7 @@ def main_program():
 
     window = sg.Window('The program', layout)
     ACTIVE_TIME = datetime.now()
+    print(ACTIVE_TIME)
     while True:
         
         event, value = window.read(timeout=100)
@@ -342,6 +496,7 @@ def main_program():
 
         elif event == 'Run shodan with IPv4 search':
             p2.start()
+            
 
 
 
@@ -354,7 +509,10 @@ def main_program():
 
 
         elif event == 'Total run':
-            p7.start()
+            #p7.start()
+            spacy_task_run = asyncio.create_task(async_spacy())
+            
+            window['-TOTAL_RUN-'].update('Program started')
 
         elif event == 'Try Snort':
             '''
@@ -370,11 +528,37 @@ def main_program():
             insert_snort_info(conn)
             window['-TRY_SNORT-'].update(f"Tried to update Snort")
         
-        elif datetime.now() > (ACTIVE_TIME + timedelta(minutes=2)):
+        elif datetime.now() > (ACTIVE_TIME):# + timedelta(minutes=30)):
+
+            
+            #task_auto_poll = asyncio.create_task(auto_poll())  
+             
             print("Two minuts has passed")
-            ACTIVE_TIME = datetime.now()
+            spacy_task_run = asyncio.create_task(async_spacy())
+            print("Starting with Shodan")
+            #spacy_task_run = True
+            #while spacy_task_run:
+
+            shodan_task_run = asyncio.create_task(async_shodan())
+              
+            print("Shodan done")
+            print("Inserting to Snort")
+            snort_task_run = asyncio.create_task(async_snort())
+            print("Done with snort")
+            
+            #await asyncio.sleep(600)
+            await shodan_task_run  
+            await spacy_task_run
+            await snort_task_run
+            ACTIVE_TIME = datetime.now()  #+ timedelta(minutes=3)
+            print(ACTIVE_TIME)
+            #await task_auto_poll
+            print("Done with everything")
 
 
+            
+
+        
 
 
 
@@ -384,8 +568,8 @@ p1 = Process(target=main_program)
 p2 = Process(target=shodan_program)
 p3 = Process(target=poll_max)
 p4 = Process(target=run_spacy)
-p7 = Process(target=total_run)
+#p7 = Process(target=total_run)
 
 if __name__ == "__main__":
-    main_program()
-    p1.start()
+    asyncio.run(main_program())
+    #p1.start()

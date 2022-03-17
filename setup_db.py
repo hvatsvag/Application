@@ -62,7 +62,7 @@ sql_create_spacy_table = """CREATE TABLE IF NOT EXISTS spacy (
                                 info_id INTeger PRIMARY KEY autoincrement,
                                 info varchar(255) not null,
                                 info_label varchar(255) not null,
-                                content_id integen not null,
+                                content_id integer not null,
                                 foreign key (content_id) references content (content_id)
                             );"""
 
@@ -70,7 +70,7 @@ sql_create_spacy2_table = """CREATE TABLE IF NOT EXISTS spacy2 (
                                 info_id INTeger PRIMARY KEY autoincrement,
                                 info varchar(255) not null,
                                 info_label varchar(255) not null,
-                                content_id integen not null,
+                                content_id integer not null,
                                 foreign key (content_id) references content (content_id)
                             );"""
 
@@ -81,7 +81,7 @@ sql_create_shodan_table = """CREATE TABLE IF NOT EXISTS shodan (
                                 additional_info varchar(255),
                                 info_label varchar(255) not null,
                                 info_spacy varchar(255) not null,
-                                spacy_id integen not null,
+                                spacy_id integer not null,
                                 foreign key (spacy_id) references spacy (info_id)
                             );"""
 
@@ -278,13 +278,25 @@ def add_snort(conn, ipv4, msg, content_id, port_src="any", protocol="any", desti
 def get_highest_content(conn, source):
     try:
         cur = conn.cursor()
-        sql = 'select info from content where source=(?)'
+        sql = 'select max(content_id) from content where source=(?)'
         cur.execute(sql, (source,))
         for row in cur:
             (content_id,) = row
             return content_id
-    except Error:
-        #print(e)
+    except Error as e:
+        print(e)
+        pass
+
+def get_total_content(conn, source):
+    try:
+        cur = conn.cursor()
+        sql = 'select count(*) from content where source=(?)'
+        cur.execute(sql, (source,))
+        for row in cur:
+            (count,) = row
+            return count
+    except Error as e:
+        print(e)
         pass
 
 def get_ipv4_spacy(conn, label):
@@ -311,31 +323,6 @@ def get_ipv4_spacy(conn, label):
         return list_of_info
     except:
         pass    
-
-def get_ipv4_spacy2(conn, label):
-    
-    
-    try:
-        test = None
-        list_of_info = []
-        cur = conn.cursor()
-        test1 = cur.execute('select max(shodan_id) from shodan')
-        for row in test1:
-            (id, ) = row
-            test = id
-            #print("test = ", test)
-        sql = ""
-        if test != None:
-            sql = 'select info, info_id from spacy2 where info_label=(?) and info not in (select distinct(info_spacy) from shodan) limit 1'
-        else:
-            sql = 'select info, info_id from spacy2 where info_label=(?) limit 1'
-        cur.execute(sql, (label,))
-        for row in cur:
-            (info, info_id) = row
-            list_of_info.append([info, label, info_id])
-        return list_of_info
-    except:
-        pass   
 
 def get_all_label_spacy(conn, description):
     try:
@@ -493,11 +480,11 @@ def collect_stix_info(conn, client, source_name, NUMBER):
         #print(f"the highest id is {highest_id} and the source_name is {source_name}")
 
         newest_date = get_name_content(conn, highest_id)
-        #print(f"newest date is {newest_date} and the source_name is {source_name}")
+        print(f"newest date is {newest_date} and the source_name is {source_name}. The id is {highest_id}")
 
         
         content_blocks = client.poll(collection_name=source_name)#, begin_date=newest_date)
-        if source_name == "user_AlienVault":
+        if source_name == "user_AlienVault" or source_name == "vxvault":
             content_blocks = client.poll(collection_name=source_name, begin_date=newest_date)
 
         NUMBER_OF_MSGS = NUMBER
@@ -506,7 +493,7 @@ def collect_stix_info(conn, client, source_name, NUMBER):
         for block in content_blocks:
             cnt = block.content
             #cnts.append([cnt, str(block.timestamp)])
-            if (tmp_cnt_msg + 1) % 10000 == 0:
+            if (tmp_cnt_msg + 1) % 10 == 0:
                 print(f"getting block {tmp_cnt_msg + 1} {source_name} with timestamp {block.timestamp}")
             list_of_ents.append([str(block.timestamp), cnt, source_name])
             #add_content(conn, str(block.timestamp), cnt, source_name)
@@ -514,7 +501,9 @@ def collect_stix_info(conn, client, source_name, NUMBER):
 
             tmp_cnt_msg += 1
             if tmp_cnt_msg >= NUMBER_OF_MSGS:
-                #print(f"Got {tmp_cnt_msg} files from {source_name}")
+                print(f"Got {tmp_cnt_msg} files from {source_name}")
+                #for i in list_of_ents:
+                #    add_content(conn, i[0], i[1], i[2])
                 break
         #for ecnt in cnts:
         #    add_content(conn, ecnt[1], ecnt[0], source_name)
@@ -644,8 +633,8 @@ def setup():
         #create_table(conn, sql_create_content_failed_table)
         create_table(conn, sql_create_shodan_table)
         create_table(conn, sql_create_snort_table)
-        create_table(conn, sql_create_spacy2_table)
-        insert_snort_info(conn)
+        #create_table(conn, sql_create_spacy2_table)
+        #insert_snort_info(conn)
         conn.close()
 
 

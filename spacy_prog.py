@@ -4,7 +4,7 @@ from stix2elevator.options import initialize_options, set_option_value, get_vali
 import json
 import spacy
 from spacy.matcher import Matcher
-
+import asyncio
 
 
 def try_elevate_options(list):
@@ -27,7 +27,7 @@ def try_elevate_options(list):
 
 
 
-def find_relevant_spacy_list(list_of_stuff):
+async def find_relevant_spacy_list(list_of_stuff):
     #print(len(list_of_stuff))
     
     nlp = spacy.load("en_core_web_sm")
@@ -177,7 +177,7 @@ def find_relevant_spacy_list(list_of_stuff):
     return all_entries
 
 # This one does not convert stix to json
-def find_relevant_spacy_stix(list_of_stuff):
+async def find_relevant_spacy_stix(list_of_stuff):
     #print(len(list_of_stuff))
     nlp = spacy.load("en_core_web_sm")
     ruler = nlp.add_pipe("entity_ruler", before="ner")
@@ -196,10 +196,17 @@ def find_relevant_spacy_stix(list_of_stuff):
     octet_rx = r'(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)'
     patterns_matcher = [{"TEXT": {"REGEX": r"^{0}(?:\.{0}){{3}}$".format(octet_rx)}},]
     patterns_matcher2 = [{"TEXT": "MD5"}, {"TEXT": ":"}, {"IS_ASCII": True}]
-    patterns_matcher3 = [{"TEXT": "SHA-256"}, {"TEXT": ":"}, {"ORTH": "None", "OP": "!"}, {"IS_ASCII": True}]
+    patterns_matcher3 = [{"TEXT": "SHA-256"}, {"TEXT": ":"}, {"TEXT": "None", "OP": "!"}, {"IS_ASCII": True}]
     #patterns_matcher4 = [{"LIKE_URL": True}]
+    patterns_matcher4 = [
+        {"TEXT": "SHA256"},
+        {"TEXT": "-", "OP": "?"},
+        {"TEXT": "None", "OP": "!"},
+        {"IS_ASCII": True}
+        #{"ORTH": "."}
+    ]
     patterns_matcher5 = [{"TEXT": {"REGEX": r"^{0}(?:\.{0}){{3}}$".format(octet_rx)}}, {"TEXT": ":", "OP": "?"}, {"TEXT": {"REGEX": r"[0-9]{2}?"}, "OP": "+"}]
-    patterns_matcher6 = [{"ORTH": "Port"}, {"TEXT": {"REGEX": r"[0-9]{2}?"}, "OP": "+"}]
+    patterns_matcher6 = [{"TEXT": "Port"}, {"TEXT": {"REGEX": r"[0-9]{2}?"}, "OP": "+"}]
     patterns_matcher7 = [
         {"TEXT": "Ports"}, 
         {"TEXT": ":"}, 
@@ -207,52 +214,60 @@ def find_relevant_spacy_stix(list_of_stuff):
         {"IS_ASCII": True, "OP": "+"}, 
         {"TEXT": "}"}
         ]
+    patterns_matcher8 = [{"TEXT": "port"}, {"TEXT": {"REGEX": r"[0-9]{2}?"}, "OP": "+"}]
     matcher = Matcher(nlp.vocab)
     matcher.add("ipv4", [patterns_matcher])
     matcher.add("MD5", [patterns_matcher2])
     matcher.add("SHA-256", [patterns_matcher3])
     #matcher.add("URL", [patterns_matcher4])
+    matcher.add("SHA256", [patterns_matcher4])
     matcher.add("ipv4 and port", [patterns_matcher5])
     matcher.add("Port", [patterns_matcher6])
     matcher.add("Ports", [patterns_matcher7])
+    matcher.add("port", [patterns_matcher8])
     
     counter = 0 
     for i in list_of_stuff:
-        #print(type(i[0]))
-        #print(i[0])
-        information = str(i[0].decode())
-        information = information.replace("'", " ' ")
-        information = information.replace("[", "[ ")
-        information = information.replace("]", " ]")
-        information = information.replace(",", " , ")
-        information = information.replace("<", " <")
-        information = information.replace(">", "> ")
-        information = information.replace(":", " : ")
-        doc = nlp(information)
-        new_matches = []
-        matches = matcher(doc)
-        #print("Len og matches is", len(matches))
-            
-        span_list = []
-        for match_id, start, end in matches:
+        try:
+            #print(type(i[0]))
+            #print(i[0])
+            information = str(i[0].decode())
+            information = information.replace("'", " ' ")
+            information = information.replace("[", "[ ")
+            information = information.replace("]", " ]")
+            information = information.replace(",", " , ")
+            information = information.replace("<", " <")
+            information = information.replace(">", "> ")
+            information = information.replace(":", " : ")
+            doc = nlp(information)
+            new_matches = []
+            matches = matcher(doc)
+            #print("Len og matches is", len(matches))
                 
-            str_id = nlp.vocab.strings[match_id]
-            span = doc[start:end]
-            if span in span_list:
-                continue
-            span_list.append(span)
-            print("This is the matches", match_id, str_id, start, end, span.text)
-            new_matches.append([f"{str_id}", f"{span.text}"])
-             
-        
-            #ruler.add_patterns(new_patterns_ruler)
-            #print("Added to ruler")
-            #entrys = nlp(information)
-        all_entries.append([doc, i[1], new_matches])
-        #print("The lengt of all entrys is", len(all_entries), "Added", [entrys, i[1]])
-        counter += 1
-        if counter % 100 == 0:
-            print("STIX documents processed by spacy", counter)
+            span_list = []
+            for match_id, start, end in matches:
+                    
+                str_id = nlp.vocab.strings[match_id]
+                span = doc[start:end]
+                if span in span_list:
+                    continue
+                span_list.append(span)
+                #print("This is the matches", match_id, str_id, start, end, span.text)
+                new_matches.append([f"{str_id}", f"{span.text}"])
+                
+            
+                #ruler.add_patterns(new_patterns_ruler)
+                #print("Added to ruler")
+                #entrys = nlp(information)
+            all_entries.append([doc, i[1], new_matches])
+            #print("The lengt of all entrys is", len(all_entries), "Added", [entrys, i[1]])
+            counter += 1
+            if counter % 100 == 0:
+                print("STIX documents processed by spacy", counter)
+            if counter % 20 == 0:
+                await asyncio.sleep(0.00000001)
+        except:
+            pass
     return all_entries#, rest_list
 
 
