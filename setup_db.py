@@ -90,8 +90,6 @@ sql_create_snort_table = """CREATE TABLE IF NOT EXISTS snort (
                                 protocol varchar(255) not null,
                                 ipv4_src varchar(255) not null,
                                 port_src varchar(255) not null,
-                                destination varchar(255) not null,
-                                port varchar(255) not null,
                                 msg varchar(255) not null,
                                 content_id integer not null
                             );"""
@@ -207,7 +205,7 @@ def add_shodan(conn, info_list):
                 #print(type(j[0][1]), "This is the type inserted")  
         conn.commit()                          
     except:
-        conn.commit()     
+        #conn.commit()     
         #print(e)
         pass
         '''
@@ -223,7 +221,7 @@ def add_shodan(conn, info_list):
     
 
 
-def add_snort(conn, ipv4, msg, content_id, port_src="any", protocol="any", destination="any", port="any"):
+def add_snort(conn, ipv4, msg, content_id, port_src="any", protocol="any"):
     #print(f"ipv4=", {ipv4}, "msg:", {msg}, "content_id:", {content_id}, "port_src:", {port_src}, "protocol:", {protocol}, "destination:", {destination}, "port:", {port})
     """
     Add a new source into the source table
@@ -239,12 +237,12 @@ def add_snort(conn, ipv4, msg, content_id, port_src="any", protocol="any", desti
     
     """
 
-    sql = ''' INSERT INTO snort(protocol, ipv4_src, port_src, destination, port, msg, content_id) VALUES(?,?,?,?,?,?,?) '''
+    sql = ''' INSERT INTO snort(protocol, ipv4_src, port_src, msg, content_id) VALUES(?,?,?,?,?) '''
     cur = conn.cursor()
     
     try:
         if ipv4 != "" and content_id != "":
-            cur.execute(sql, (protocol, ipv4, port_src, destination, port, msg, content_id))
+            cur.execute(sql, (protocol, ipv4, port_src, msg, content_id))
             cur.execute('select sid from snort where sid=(select max(sid) from snort)')
 
 
@@ -253,8 +251,6 @@ def add_snort(conn, ipv4, msg, content_id, port_src="any", protocol="any", desti
                     "protocol": protocol,
                     "ipv4_src": ipv4,
                     "port_src": port_src,
-                    "destination": destination,
-                    "port": port,
                     "msg": msg
                 }
             #print(info)
@@ -298,6 +294,29 @@ def get_total_content(conn, source):
     except Error as e:
         print(e)
         pass
+
+def get_all_ipv4_spacy(conn, label):
+    try:
+        test = None
+        list_of_info = []
+        cur = conn.cursor()
+        test1 = cur.execute('select max(shodan_id) from shodan')
+        for row in test1:
+            (id, ) = row
+            test = id
+            #print("test = ", test)
+        sql = ""
+        if test != None:
+            sql = 'select info, max(info_id) from spacy where info_label=(?) and info not in (select distinct(info_spacy) from shodan) group by info'
+        else:
+            sql = 'select info, max(info_id) from spacy where info_label=(?) group by info'
+        cur.execute(sql, (label,))
+        for row in cur:
+            (info, info_id) = row
+            list_of_info.append([info, label, info_id])
+        return list_of_info
+    except:
+        pass    
 
 def get_ipv4_spacy(conn, label):
     
@@ -551,6 +570,14 @@ def clean_spacy_list(conn):
     except Error as e:
         print(e)        
 
+def reset_snort_table(conn):
+    cur = conn.cursor()
+
+    try:
+        cur.execute('drop table snort')
+    except:
+        pass
+    create_table(conn, sql_create_snort_table)
 
 def insert_snort_info(conn):
     cur = conn.cursor()
@@ -579,11 +606,11 @@ def insert_snort_info(conn):
             if result != None:
                 sql =' select info, content_id, info_id from spacy where info in (select distinct(info_spacy) from shodan where info not in ("No info in shodan", "0") and info_spacy not in (select ipv4_src from snort) ) limit 1 '
             else:
-                sql = ' select info, content_id, info_id from spacy where info in (select distinct(info_spacy) from shodan where info not in ("No info in shodan", "0") limit 1)'
+                sql = ' select info, content_id, info_id from spacy where info in (select distinct(info_spacy) from shodan where info not in ("No info in shodan", "0") ) limit 1 '
             cur.execute(sql)
             cid = ""
             ipv4_src = ""
-            spacy_id = ""
+            spacy_id = {}
             msg = ""
             #ports_list = "["
             for row in cur:
@@ -591,9 +618,10 @@ def insert_snort_info(conn):
                 cid = content_id
                 ipv4_src = info
                 spacy_id = info_id
+            
             msg = f"Alert, this ip {ipv4_src} has been found malicios, se STIX file {cid}"
-            sql = ('select info, info_label from spacy where content_id=(?)')
-            cur.execute(sql, (cid,))
+            sql = ('select info, info_label from spacy where content_id in (select DISTINCT(content_id) from spacy where info=(?))')
+            cur.execute(sql, (ipv4_src,))
             ports_dict = {}
             ports_list = "["
             ip_transport = {}
@@ -634,7 +662,8 @@ def setup():
         create_table(conn, sql_create_shodan_table)
         create_table(conn, sql_create_snort_table)
         #create_table(conn, sql_create_spacy2_table)
-        #insert_snort_info(conn)
+        insert_snort_info(conn)
+        
         conn.close()
 
 

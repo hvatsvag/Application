@@ -267,6 +267,7 @@ async def find_relevant_spacy_stix(list_of_stuff):
             if counter % 20 == 0:
                 await asyncio.sleep(0.00000001)
         except:
+            
             pass
     return all_entries#, rest_list
 
