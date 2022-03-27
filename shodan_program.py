@@ -5,18 +5,20 @@ import shodan
 from shodan import Shodan
 from shodan.cli.helpers import get_api_key
 import time
+import aiohttp
 
 import json
 import asyncio
 
 
+
 api = shodan.Shodan('giaq9oOq9mtRdjzyXv17duRoa4TkR9Ib')
 
 async def shodan_search(ipv4):
-    time_now = datetime.now()
-    result = api.search(ipv4)
-    print("Time for response is", datetime.now() - time_now)
-    return result
+    #time_now = datetime.now()
+    #result = api.search(ipv4)
+    #print("Time for response is", datetime.now() - time_now)
+    return api.search(ipv4)
 
 async def check_ipv4(list):#, filter_type):
     info_list = []
@@ -28,14 +30,15 @@ async def check_ipv4(list):#, filter_type):
                 j = [[["", None, ""], i[1], i[2]]]
             
                 # Search Shodan
-                time_search = datetime.now()
+                #time_search = datetime.now()
                 #results = await asyncio.create_task(shodan_search(i[0]))
                 #results = await task
                 #print(f"{api.search(i[0])}")
-                results = api.search(i[0])
+                #results = await  api.search(i[0])
+                #results = api.search(i[0])
                 #results2 = await asyncio.wait(api.search(i[0]), return_when=asyncio.ALL_COMPLETED)
-                
-                print(results)
+                results = await shodan_search(i[0])
+                #print(results)
                 #print(results2)
                 count = 0
                 if results['total'] != 0:
@@ -57,7 +60,7 @@ async def check_ipv4(list):#, filter_type):
                 #    print("Sleeping")
                 list[count_list] = i
                 count_list += 1    
-                if count_list % 10 == 0:
+                if count_list % 4 == 0:
                     print(f"Showdan has searched {count_list} IP addresses")
         #except shodan.APIError as e:
         #    print('Error: {}'.format(e))

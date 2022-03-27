@@ -25,6 +25,7 @@ ACTIVE_TIME = None
 CLIENT = None
 SERVICES = None
 COLLECTIONS = None
+ACTIVE_FUNCTIONS = None
 
 
 database = r"./database.db"
@@ -91,7 +92,8 @@ async def async_spacy():
         task_spacy_process = asyncio.create_task(spacy_processing(list_slice))
         processed_stix_files += len(list_slice)  
         await task_spacy_process
-        print("Done with Spacy")        
+        print("Done with Spacy")
+        ACTIVE_FUNCTIONS = True        
 
         await asyncio.sleep(1)
 
@@ -207,13 +209,31 @@ async def async_shodan_all():
     #await asyncio.sleep(0.001)
 
 async def async_shodan():
+    
     spacy_list = 10
+    ACTIVE_FUNCTIONS = True
     while spacy_list != 0:
+        while ACTIVE_FUNCTIONS == False:
+            print("sleeping")
+            await asyncio.sleep(30)
+            print("Done Sleeping")
+            ACTIVE_FUNCTIONS = True
         list_ipv4 = get_ipv4_spacy(conn, 'ipv4')
+        time_search = datetime.now()
         task_showdan = asyncio.create_task(check_ipv4(list_ipv4))
         info_list = await task_showdan
         add_shodan(conn, info_list)
         spacy_list = len(list_ipv4)
+        #print("Spacy list is", spacy_list)
+        if spacy_list == 0:
+            print("Setting Active to false")
+            ACTIVE_FUNCTIONS = False
+            spacy_list = 1
+        #print("Spacy list is", spacy_list)
+        while datetime.now() < time_search +  timedelta(seconds=1):
+            print("Sleeping")
+            await asyncio.sleep(0.1)
+        #print(spacy_list)
         #print(spacy_list)
         #await asyncio.sleep(0.001)
 
@@ -292,6 +312,7 @@ async def auto_poll():
         await asyncio.sleep(0.001)
         print("printing collections", clients[i][1])
         for j in clients[i][1]:
+            
             try:
                 highest_id = get_highest_content(conn, j.name)
                 total_count = get_total_content(conn, j.name)
@@ -338,8 +359,16 @@ async def reset_snort():
                 
     
 async def async_snort():
-    insert_snort_info(conn)
-    await asyncio.sleep(0.001)
+    ACTIVE_FUNCTIONS = True
+    action = True
+    while action:
+        if ACTIVE_FUNCTIONS == False:
+            print("Sleeping")
+            await asyncio.sleep(600)
+            ACTIVE_FUNCTIONS = True
+        insert_snort_info(conn)
+        ACTIVE_FUNCTIONS = False
+        await asyncio.sleep(0.001)
 
 
 
@@ -364,8 +393,10 @@ def poll_max():
             SERVICES = CLIENT.discover_services()
             COLLECTIONS = CLIENT.get_collections()
             for j in COLLECTIONS:
-                collect_stix_info(conn, CLIENT, j.name, 200000)
-            window['-POLL_OUT-'].update('Polled up to 200000 from each collection')
+                if j.name == "guest.EmergineThreats_rules" or j.name == "system.Default":
+                    continue
+                collect_stix_info(conn, CLIENT, j.name, 300000)
+            window['-POLL_OUT-'].update('Polled up to 300000 from each collection')
 
     window.close()
 
@@ -473,14 +504,15 @@ async def main_program():
         [sg.Button('Run spacy')]
     ]
 
-
+    ACTIVE_FUNCTIONS = False
     SHODONTIME = datetime.now()
     print(SHODONTIME, "This is SHODON_TIME")
     window = sg.Window('The program', layout)
     ACTIVE_TIME = datetime.now()
     print(ACTIVE_TIME)
     
-    shodan_task_run = asyncio.create_task(async_shodan_all())
+    snort_task = asyncio.create_task(async_snort())
+    shodan_task_run = asyncio.create_task(async_shodan())
     #await shodan_task_run
     while True:
         
