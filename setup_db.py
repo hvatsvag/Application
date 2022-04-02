@@ -199,7 +199,8 @@ def add_shodan(conn, info_list):
         #if i[0] != 'No info in shodan':
             for j in i:
             #print("j is",j)
-
+                if j[0][2] == "":
+                    continue
                 sql = ''' INSERT INTO shodan(info, additional_info, info_label, info_spacy, spacy_id) VALUES(?, ?, ?, ?, ?) '''
                 cur.execute(sql, (j[0][0], j[0][1], j[1], j[0][2], j[2]))
                 #print(type(j[0][1]), "This is the type inserted")  
@@ -371,9 +372,9 @@ def get_text_content(conn):
             #print("test = ", test)
         sql = ""
         if test == None:
-            sql = "select content_text, content_id from content WHERE content_id not in (select content_id from spacy) limit 1000000"
+            sql = "select content_text, content_id from content WHERE content_id not in (select content_id from spacy) limit 100"
         else:
-            sql = "select content_text, content_id from content WHERE content_id > (select max(content_id) from spacy) limit 1000000"
+            sql = "select content_text, content_id from content WHERE content_id > (select max(content_id) from spacy) limit 100"
         
         #
         cur.execute(sql)

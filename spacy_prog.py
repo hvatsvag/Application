@@ -264,7 +264,7 @@ async def find_relevant_spacy_stix(list_of_stuff):
             counter += 1
             if counter % 100 == 0:
                 print("STIX documents processed by spacy", counter)
-            if counter % 2 == 0:
+            if counter % 5 == 0 and len(shodan_list) != 0:
                 await asyncio.sleep(0.00000001)
         except:
             
