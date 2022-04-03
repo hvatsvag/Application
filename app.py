@@ -355,13 +355,7 @@ async def auto_poll():
                 except HTTPError as err:
                     print(err)
                     continue
-                except UnsuccessfulStatusError as err:
-                    print(err)
-                    continue
                 except ServiceNotFoundError as err:
-                    print(err)
-                    continue
-                except NotSupportedError as err:
                     print(err)
                     continue
                 except NoURIProvidedError as err:
@@ -375,6 +369,9 @@ async def auto_poll():
                     continue
                 print("Done with", j.name)
                 await asyncio.sleep(0.001)
+                if len(list_of_ents) > 0:
+                    for k in list_of_ents:
+                        add_content(conn, k[0], k[1], k[2])
                 
         await asyncio.sleep(1)
             

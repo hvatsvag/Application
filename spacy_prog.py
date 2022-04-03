@@ -235,6 +235,8 @@ async def find_relevant_spacy_stix(list_of_stuff):
             information = information.replace("'", " ' ")
             information = information.replace("[", "[ ")
             information = information.replace("]", " ]")
+            information = information.replace("(", "() ")
+            information = information.replace(")", " )")
             information = information.replace(",", " , ")
             information = information.replace("<", " <")
             information = information.replace(">", "> ")
