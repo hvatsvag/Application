@@ -1,4 +1,6 @@
 #import stix2viz
+from datetime import datetime
+from itertools import count
 from stix2elevator import elevate, stix_stepper
 from stix2elevator.options import initialize_options, set_option_value, get_validator_options
 import json
@@ -97,55 +99,33 @@ async def find_relevant_spacy_list(list_of_stuff):
     
     initialize_options(options={"silent": True})
 
-    
-    #list_of_elevated_stuff, rest_list = try_elevate_options(list_of_stuff)
-    rest_list = list_of_stuff
-    list_of_elevated_stuff = []
-    counter = 0 
-    
-    for i in list_of_elevated_stuff:        
+    counter = 0
+    for i in list_of_stuff:        
                     
-        #print(f"Excepted {i[1]}")
-        #json_info = elevate(text)
+
         relevant_info = ""
         if i[0] != None:
-            json_info = json.loads(i[0])
-            print(json_info)
+            relevant_info = i[0]
+            '''
+            relevant_info = json.loads(i[0])
             
-
-            # Finding relevant info
+            print(info)
+            try:
+                relevant_info = info["description"]
+            except KeyError as err:
+                print(err)
+                continue
+            '''
             
-            for key, value in json_info.items():
-                if key == "objects":
-                    value = json.loads(json.dumps(value))
-                    for k in value:
-                        #print(k, type(k))
-                        if "description" in k:
-                            
-                            relevant_info += k["description"] + "\n"
-                        if "definition" in k and "statement" in k["definition"]:
-                            
-                            #for m in k["definition"]:
-                            relevant_info += k["definition"]["statement"] + "\n"
-                        if "objects" in k:
-                            #print(k["objects"])
-                            
-                            for val_type in k["objects"]:
-                                #print(k["objects"][val_type]["value"])
-                                #print(val_type)
-                                if "value" in k["objects"][val_type]:
-                                    #print("Inside last for", k["objects"][val_type]["value"])
-                                    relevant_info += k["objects"][val_type]["value"] + "\n"
-        
-            #print("The relevant info is", relevant_info, "\n\n", "End of relevant info")
-        
-        # Use relevant info
 
         relevant_info = relevant_info.replace("'", " ' ")
+        relevant_info = relevant_info.replace('"', ' " ')
         relevant_info = relevant_info.replace("[", "[ ")
         relevant_info = relevant_info.replace("]", " ]")
         relevant_info = relevant_info.replace(",", " , ")
-        information = information.replace(":", " : ")
+        relevant_info = relevant_info.replace(":", " : ")
+        relevant_info = relevant_info.replace("(", "() ")
+        relevant_info = relevant_info.replace(")", " )")
 
         doc = nlp(relevant_info)
         matches = matcher(doc)
@@ -171,16 +151,16 @@ async def find_relevant_spacy_list(list_of_stuff):
         counter += 1
         if counter % 100 == 0:
             print("Elevated documents processed by spacy", counter)
-    more_entries = find_relevant_spacy_stix(rest_list)
-    for ent in more_entries:
-        all_entries.append(ent)
+   
     return all_entries
 
 # This one does not convert stix to json
 async def find_relevant_spacy_stix(list_of_stuff):
     #print(len(list_of_stuff))
-    nlp = spacy.load("en_core_web_sm")
-    ruler = nlp.add_pipe("entity_ruler", before="ner")
+    #nlp = spacy.load("en_core_web_sm")
+    nlp = spacy.blank("en")
+    #ruler = nlp.add_pipe("entity_ruler", before="ner")
+    ruler = nlp.add_pipe("entity_ruler")
     transport_protocol = ["tcp", "TCP", "icmp", "ICMP", "udp", "UDP"]
     patterns_ruler = [
         {"label": "transport", "pattern": protocol} for protocol in transport_protocol
@@ -227,15 +207,17 @@ async def find_relevant_spacy_stix(list_of_stuff):
     matcher.add("port", [patterns_matcher8])
     
     counter = 0 
+    
     for i in list_of_stuff:
         try:
+            #print("Running one file trough spacy", datetime.now())
             #print(type(i[0]))
             #print(i[0])
             information = str(i[0].decode())
             information = information.replace("'", " ' ")
             information = information.replace("[", "[ ")
             information = information.replace("]", " ]")
-            information = information.replace("(", "() ")
+            information = information.replace("(", "( ")
             information = information.replace(")", " )")
             information = information.replace(",", " , ")
             information = information.replace("<", " <")
@@ -266,8 +248,9 @@ async def find_relevant_spacy_stix(list_of_stuff):
             counter += 1
             if counter % 100 == 0:
                 print("STIX documents processed by spacy", counter)
-            if counter % 5 == 0 and len(shodan_list) != 0:
+            if counter % 6 == 0:
                 await asyncio.sleep(0.00000001)
+            #print("Done running one file trough spacy", datetime.now())
         except:
             
             pass
