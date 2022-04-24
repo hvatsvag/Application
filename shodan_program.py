@@ -94,15 +94,18 @@ async def check_ipv4(list):#, filter_type):
     #print("List after search is", list)    
     return list[0]
 
-def insert_snort(info):
+def insert_snort(info_ist):
     f = open ("c:/Snort/rules/local.rules", "a")
-    insert_info = f'alert {info["protocol"]} {info["ipv4_src"]} {info["port_src"]} -> any any (msg:'
-    insert_info += '"'
-    insert_info += f'{info["msg"]}'
-    insert_info += '";'
-    insert_info += f'sid:{info["sid"]};)\n'
-    #print(insert_info)
-    f.write(insert_info)
+    insert_info = ""
+    for i in info_ist:
+        insert_info = f'alert {i["protocol"]} {i["ipv4_src"]} {i["port_src"]} -> any any (msg:'
+        insert_info += '"'
+        insert_info += f'{i["msg"]}'
+        insert_info += '";'
+        insert_info += f'sid:{i["sid"]};)\n'
+        #print(insert_info)
+        
+    f.write(insert_info)    
     f.close()
 
 def reset_rule_table():

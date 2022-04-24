@@ -8,7 +8,7 @@ import spacy
 from setup_db import create_connection, add_source, get_text_content, collect_stix_info, add_spacy, delete_entry_content, \
     clean_spacy_list, get_all_label_spacy, clean_content_list, get_ipv4_spacy, add_shodan, add_snort, insert_snort_info, get_text_content_spacy2, \
     get_text_content_spacy2, add_spacy2, get_highest_content, get_name_content, add_content, get_total_content, reset_snort_table, get_all_ipv4_spacy, \
-    get_status_info
+    get_status_info, insert_snort_info_test
 import sqlite3
 from cabby import create_client
 from cabby.exceptions import HTTPError, UnsuccessfulStatusError, ServiceNotFoundError, NotSupportedError, \
@@ -242,8 +242,8 @@ async def async_shodan():
         
         result_list = []
         for i in list_ipv4:
-            while datetime.now() < time_search +  timedelta(seconds=0.75):
-                print("Sleeping")
+            while datetime.now() < time_search +  timedelta(seconds=0.8):
+                #print("Sleeping")
                 await asyncio.sleep(0.01)
             task_showdan = asyncio.create_task(check_ipv4([i]))
             time_search = datetime.now()
@@ -451,12 +451,13 @@ async def reset_snort():
 async def async_snort():
     ACTIVE_FUNCTIONS = True
     action = True
-    while action:
+    while True:
         if ACTIVE_FUNCTIONS == False:
             print("Sleeping")
-            await asyncio.sleep(600)
+            await asyncio.sleep(120)
+            print("Done sleeping")
             ACTIVE_FUNCTIONS = True
-        task = asyncio.create_task(insert_snort_info(conn))
+        task = asyncio.create_task(insert_snort_info_test(conn))
         await task
         ACTIVE_FUNCTIONS = False
         

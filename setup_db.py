@@ -269,6 +269,55 @@ def add_snort(conn, ipv4, msg, content_id, port_src="any", protocol="any"):
         #print(e)
         pass
 
+def add_multiple_snort(conn, list):
+    #print(f"ipv4=", {ipv4}, "msg:", {msg}, "content_id:", {content_id}, "port_src:", {port_src}, "protocol:", {protocol}, "destination:", {destination}, "port:", {port})
+    """
+    Add multiple new source into the source table, each element contain:
+    
+    param:  protocol
+    param:  ipv4_src
+    param:  port_src
+    param:  destination
+    param:  port
+    param:  msg
+    param:  content_id
+
+    
+    """
+
+    sql = ''' INSERT INTO snort(protocol, ipv4_src, port_src, msg, content_id) VALUES(?,?,?,?,?) '''
+    cur = conn.cursor()
+    info_list = []
+    for i in list:
+        try:
+            if i[0] != "" and i[2] != "":
+                cur.execute(sql, (i[4], i[0], i[3], i[1], i[2]))
+                cur.execute('select sid from snort where sid=(select max(sid) from snort)')
+                info = {
+                        "sid": "1000000",
+                        "protocol": i[4],
+                        "ipv4_src": i[0],
+                        "port_src": i[3],
+                        "msg": i[1]
+                }
+                for row in cur:
+                    (sid, ) = row
+                    info["sid"] = str(int(info["sid"]) + sid)
+                info_list.append(info)
+        except:
+                    
+            #print(e)
+            pass
+
+                
+                #print(info)
+                
+                #print(info)
+        conn.commit()        
+        insert_snort(info_list)
+                #info["sid"] = str(int(info["sid"]) + 1)
+        
+        
 
 
 
@@ -334,10 +383,10 @@ def get_ipv4_spacy(conn, label):
             #print("test = ", test)
         sql = ""
         if test != None:
-            sql = 'select info, info_id from spacy where info_label=(?) and info not in (select distinct(info_spacy) from shodan) group by info limit 50'
+            sql = 'select info, info_id from spacy where info_label=(?) and info not in (select distinct(info_spacy) from shodan) group by info limit 100'
             #sql = 'select info, info_id from spacy where info_label=(?) and info not in (select distinct(info_spacy) from shodan) limit 10 '
         else:
-            sql = 'select info, info_id from spacy where info_label=(?) limit 1'
+            sql = 'select info, info_id from spacy where info_label=(?) limit 100'
         cur.execute(sql, (label,))
         for row in cur:
             (info, info_id) = row
@@ -704,6 +753,103 @@ async def insert_snort_info(conn):
         pass
     
 
+async def insert_snort_info_test(conn):
+    cur = conn.cursor()
+    # First, fint the amount of IPv4 addresses that need to be put into the snort table
+    
+    try:
+        sql = ""
+        result = "" 
+        cur.execute('select max(sid) from snort')
+        for row in cur:
+            (sid, ) = row
+            result = sid
+        if result != None:
+            sql =' select distinct(info) from spacy where info in (select distinct(info_spacy) from shodan where info in ("found data") and info_spacy not in (select ipv4_src from snort) )'
+        else:
+            sql = ' select distinct(info) from spacy where info in (select distinct(info_spacy) from shodan where info in ("found data") )'
+        result = {}
+        cur.execute(sql)
+        msg = ""
+        #ports_list = "["
+        for row in cur:
+            (info, ) = row
+            result[info] = info    
+        count = 0
+        snort_list = []
+        ports_dict = {}
+        ports_list = "["
+        content_dict = {}
+        content_string = ""
+        ip_transport = {}
+        ip_protocol = ""
+        for j in result:    
+            j = result[j]
+            #loop = asyncio.get_event_loop()
+
+            #print(j)
+            #print("Before sql search", datetime.now())
+            sql = ('select info, info_label, content_id from spacy where content_id in (select DISTINCT(content_id) from spacy where info=(?))')
+            #print("After sql search", datetime.now())
+            cur.execute(sql, (j,))
+            
+            #print("Before row split", datetime.now())
+            for row in cur:
+                (info, info_label, content_id) = row
+                
+                if info_label == "Port":
+                    ports_dict[info] = info
+                    content_dict[content_id] = content_id
+                    #print(info, info_label, content_id)
+                elif info_label == "transport":
+                    ip_transport[info] = info
+                    content_dict[content_id] = content_id
+                    #print(info, info_label, content_id)
+                else:
+                    content_dict[content_id] = content_id
+                #additional_info = {additional_info}
+            #print("After row split", datetime.now())
+            #print("Before dict extract", datetime.now())
+            for i in ports_dict:
+                ports_list += f"{ports_dict[i]},"
+            for i in content_dict:
+                content_string += f"{content_dict[i]},"
+            #print("After dict extract", datetime.now())
+            #print(content_string)
+            ports_list = ports_list.strip(",")
+            ports_list += "]"
+            if ports_list == "[]":
+                ports_list = "any"
+            protocol_list = ["tcp", "udp", "ip"]
+            if len(ip_transport) == 0:
+                ip_transport = protocol_list
+            msg = f"Alert, this ip {j} has been found malicios, se STIX files {content_string}"
+            for i in ip_transport:
+                ip_protocol = i
+                snort_list.append([j, msg, content_string, ports_list, ip_protocol])
+                #info = add_snort(conn, j, msg, content_string, port_src=ports_list, protocol=ip_protocol)
+            #print("Done with one", datetime.now(), "\n")
+            count += 1
+            ports_dict = {}
+            ports_list = "["
+            content_dict = {}
+            content_string = ""
+            ip_transport = {}
+            ip_protocol = ""
+            if count % 10 == 0:
+                print(count, "documents has been added to snort list processing")
+                add_multiple_snort(conn, snort_list) 
+                snort_list = [] 
+                await asyncio.sleep(20)
+        if len(snort_list) > 0:
+            add_multiple_snort(conn, snort_list)              
+              
+
+    except Error as e:
+        print(e)
+        pass
+    
+
         
 async def setup():
     conn = create_connection(database)
@@ -715,7 +861,7 @@ async def setup():
         create_table(conn, sql_create_shodan_table)
         create_table(conn, sql_create_snort_table)
         #create_table(conn, sql_create_spacy2_table)
-        task = asyncio.create_task(insert_snort_info(conn))
+        task = asyncio.create_task(insert_snort_info_test(conn))
         await task
         #get_status_info(conn)
         conn.close()
