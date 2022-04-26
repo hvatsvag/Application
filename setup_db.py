@@ -7,6 +7,8 @@ from cabby import exceptions as cabby_err
 import json
 from shodan_program import insert_snort
 import asyncio
+import aiosqlite
+
 
 
 database = r"./database.db"
@@ -20,6 +22,21 @@ def create_connection(db_file):
     conn = None
     try:
         conn = sqlite3.connect(db_file)
+        return conn
+    except Error as e:
+        print(e)
+
+    return conn
+
+async def create_connection_async(db_file):
+    """ create a database connection to the SQLite database
+        specified by db_file
+    :param db_file: database file
+    :return: Connection object or None
+    """
+    conn = None
+    try:
+        conn = await aiosqlite.connect(db_file)
         return conn
     except Error as e:
         print(e)
@@ -45,7 +62,7 @@ def create_table(conn, create_table_sql):
         
 sql_create_content_table = """CREATE TABLE IF NOT EXISTS content (
                                 content_id INTeger PRIMARY KEY autoincrement,
-                                name varchar(255) not null unique,
+                                name varchar(255) not null,
                                 content_text varchar not null,
                                 source varchar(255) not null,
                                 foreign key (source) references sources (name)
@@ -485,6 +502,31 @@ def get_status_info(conn):
     #print(results)
     return results
 
+def extract_results(conn, list_servers):
+    cur = conn.cursor()
+    list_sql = [
+        ["select count(content_id) from content where source=(?)", "The amount of files stored in"],
+        ["select count(DISTINCT(content_id)) from content where content_id in (select content_id from spacy where info in (select info_spacy from shodan where info='found data')) and source=(?)", "STIX files containing active IPv4 addresses"],
+        ["select count(distinct(info)) from spacy where content_id in (select content_id from content where source=(?)) and info_label='ipv4'", "Total IPv4 addresses found"],
+        ["select count(distinct(content_id)) from spacy where content_id in (select content_id from content where source=(?)) and info_label='Port'", "Total STIX files where PORTs are found"],
+        ["select count(distinct(content_id)) from spacy where content_id in (select content_id from content where source=(?)) and info_label='transport'", "Total STIX files where transport protocols are found"],
+        ["select count(distinct(info)) from spacy where content_id in (select content_id from content where source=(?)) and info_label='ipv4' and info in (select info_spacy from shodan where info='found data')", "Active IPv4 affresses found"],
+        
+
+    ]
+    for i in list_servers:
+        print(i)
+        for j in list_sql:
+            try:
+                sql = j[0]
+                cur.execute(sql, (i,))
+                for row in cur:
+                    (count, ) = row
+                    print(j[1], i, count)
+            except Error as err:
+                print(err)
+        print()
+
 def get_text_content_spacy2(conn):
     
     
@@ -608,7 +650,7 @@ async def collect_stix_info(conn, client, source_name, NUMBER):
         for block in content_blocks:
             cnt = block.content
             #cnts.append([cnt, str(block.timestamp)])
-            if (tmp_cnt_msg + 1) % 10 == 0:
+            if (tmp_cnt_msg + 1) % 1000 == 0:
                 print(f"getting block {tmp_cnt_msg + 1} {source_name} with timestamp {block.timestamp}")
             list_of_ents.append([str(block.timestamp), cnt, source_name])
             #add_content(conn, str(block.timestamp), cnt, source_name)
@@ -861,9 +903,12 @@ async def setup():
         create_table(conn, sql_create_shodan_table)
         create_table(conn, sql_create_snort_table)
         #create_table(conn, sql_create_spacy2_table)
-        task = asyncio.create_task(insert_snort_info_test(conn))
-        await task
+        #task = asyncio.create_task(insert_snort_info_test(conn))
+        #await task
         #get_status_info(conn)
+        extract_results(conn, ["vxvault", "user_AlienVault", "guest.CyberCrime_Tracker", "guest.EmergineThreats_rules", "guest.EmergingThreats_rules", \
+            "guest.MalwareDomainList_Hostlist", "guest.Abuse_ch", "guest.Lehigh_edu", "guest.blutmagie_de_torExits", "guest.dataForLast_7daysOnly", \
+            "guest.phishtank_com", "system.Default"])
         conn.close()
 
 

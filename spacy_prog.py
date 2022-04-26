@@ -124,6 +124,7 @@ async def find_relevant_spacy_list(list_of_stuff):
         relevant_info = relevant_info.replace("]", " ]")
         relevant_info = relevant_info.replace(",", " , ")
         relevant_info = relevant_info.replace(":", " : ")
+        relevant_info = relevant_info.replace("/", " / ")
         relevant_info = relevant_info.replace("(", "() ")
         relevant_info = relevant_info.replace(")", " )")
 
@@ -189,7 +190,9 @@ async def find_relevant_spacy_stix(list_of_stuff):
     patterns_matcher6 = [{"TEXT": "Port"}, {"TEXT": {"REGEX": r"[0-9]{2}?"}, "OP": "+"}]
     patterns_matcher7 = [
         {"TEXT": "Ports"}, 
+        {"IS_SPACE": True, "OP": "?"},
         {"TEXT": ":"}, 
+        {"IS_SPACE": True, "OP": "?"},
         {"TEXT": "{"}, 
         {"IS_ASCII": True, "OP": "+"}, 
         {"TEXT": "}"}
@@ -214,6 +217,7 @@ async def find_relevant_spacy_stix(list_of_stuff):
             #print(type(i[0]))
             #print(i[0])
             information = str(i[0].decode())
+            information = information.replace("\'", "")
             information = information.replace("'", " ' ")
             information = information.replace("[", "[ ")
             information = information.replace("]", " ]")
@@ -223,19 +227,21 @@ async def find_relevant_spacy_stix(list_of_stuff):
             information = information.replace("<", " <")
             information = information.replace(">", "> ")
             information = information.replace(":", " : ")
+            
+            information = information.replace("/", " / ") # This has to be commented out if URLs are relevant
             doc = nlp(information)
             new_matches = []
             matches = matcher(doc)
             #print("Len og matches is", len(matches))
                 
-            span_list = []
+            #span_list = []
             for match_id, start, end in matches:
                     
                 str_id = nlp.vocab.strings[match_id]
                 span = doc[start:end]
-                if span in span_list:
-                    continue
-                span_list.append(span)
+                #if span in span_list:
+                #    continue
+                #span_list.append(span)
                 #print("This is the matches", match_id, str_id, start, end, span.text)
                 new_matches.append([f"{str_id}", f"{span.text}"])
                 

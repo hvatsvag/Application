@@ -281,12 +281,16 @@ async def get_clients():
     for i in collections2:
         if i.name == "vxvault":
             collections2 = [i]
-    
-    
+    CLIENT = create_client(
+        'hailataxii.com',
+        discovery_path='/taxii-discovery-service')     
+    CLIENT.set_auth(username="guest", password="guest")
+    COLLECTIONS = CLIENT.get_collections()
     clients.append([client1, collections1
     ])
     clients.append([client2, collections2
     ])
+    clients.append([CLIENT, COLLECTIONS])
     return clients
 '''
 async def poll_alienvault():
@@ -389,21 +393,19 @@ async def auto_poll():
                     
                 print(f"newest date is {newest_date} and the source_name is {j.name}. The id is {highest_id}")
                 content_blocks = clients[i][0].poll(collection_name=j.name, begin_date=newest_date)
-                NUMBER_OF_MSGS = 5000
+                NUMBER_OF_MSGS = 5000000
                 tmp_cnt_msg = 0
                 list_of_ents = []
                 count_scipp = 0
+                if j.name != "vxvault" and j.name != "user_AlienVault":
+                    count_scipp = total_count
                 try:    
                     for block in content_blocks:
-                    
-                        count_scipp += 1
+                        if count_scipp > 0:
+                            count_scipp -= 1
+                            continue
                         cnt = block.content
                         
-                        if count_scipp % 1000 == 0:
-                            print("count is", count_scipp)
-                            await asyncio.sleep(0.001)
-                        if count_scipp <= total_count and j.name != "vxvault" and j.name != "user_AlienVault":
-                            continue
                         if (tmp_cnt_msg) % 10 == 0:
                             print(f"getting block {tmp_cnt_msg} {j.name} with timestamp {block.timestamp}")
                             for k in list_of_ents:
@@ -486,9 +488,9 @@ async def poll_max():
             SERVICES = CLIENT.discover_services()
             COLLECTIONS = CLIENT.get_collections()
             for j in COLLECTIONS:
-                if j.name == "guest.EmergineThreats_rules" or j.name == "system.Default":
+                if j.name != "guest.blutmagie_de_torExits":
                     continue
-                collect_stix_info(conn, CLIENT, j.name, 500000)
+                collect_stix_info(conn, CLIENT, j.name, 819987)
             window['-POLL_OUT-'].update('Polled up to 500000 from each collection')
 
     window.close()
@@ -608,7 +610,7 @@ async def main_program():
     shodan_task_run = asyncio.create_task(async_shodan())
     
     spacy_background_run = asyncio.create_task(async_spacy_auto())
-    task_auto_poll = asyncio.create_task(auto_poll())
+    #task_auto_poll = asyncio.create_task(auto_poll())
     #task_auto_scapy = asyncio.create_task(scappy_app_main(conn))
     
 
@@ -679,7 +681,8 @@ async def main_program():
 
         elif event == 'Poll lots':
             for j in COLLECTIONS:
-                task = asyncio.create_task(collect_stix_info(conn, CLIENT, j.name, 100000000))
+                if j.name == "guest.blutmagie_de_torExits":
+                    task = asyncio.create_task(collect_stix_info(conn, CLIENT, j.name, 819987))
             #window['-POLL_LOTS-'].update('Polled up to 1000000 from each collection')
             #snort_task = asyncio.create_task(async_snort())
             #shodan_task_run = asyncio.create_task(async_shodan())
@@ -756,5 +759,6 @@ p7 = Process(target=asyncio.run(total_run()))
 
 
 if __name__ == "__main__":
+    
     asyncio.run(main_program())
     
