@@ -7,6 +7,7 @@ import json
 import spacy
 from spacy.matcher import Matcher
 import asyncio
+from pympler import asizeof
 
 
 def try_elevate_options(list):
@@ -212,6 +213,7 @@ async def find_relevant_spacy_stix(list_of_stuff):
     counter = 0 
     
     for i in list_of_stuff:
+        file_size = asizeof.asizeof(i[0])
         try:
             #print("Running one file trough spacy", datetime.now())
             #print(type(i[0]))
@@ -229,27 +231,21 @@ async def find_relevant_spacy_stix(list_of_stuff):
             information = information.replace(":", " : ")
             
             information = information.replace("/", " / ") # This has to be commented out if URLs are relevant
-            doc = nlp(information)
+            information = [information]
+            information2 = "Nothing"
+            while file_size > 600000:
+                information.append(information[0][:600000])
+                information[0] = information[0][600000:]
+                file_size = asizeof.asizeof(information[0])
             new_matches = []
-            matches = matcher(doc)
-            #print("Len og matches is", len(matches))
-                
-            #span_list = []
-            for match_id, start, end in matches:
-                    
-                str_id = nlp.vocab.strings[match_id]
-                span = doc[start:end]
-                #if span in span_list:
-                #    continue
-                #span_list.append(span)
-                #print("This is the matches", match_id, str_id, start, end, span.text)
-                new_matches.append([f"{str_id}", f"{span.text}"])
-                
-            
-                #ruler.add_patterns(new_patterns_ruler)
-                #print("Added to ruler")
-                #entrys = nlp(information)
-            all_entries.append([doc, i[1], new_matches])
+            for j in information:
+                doc = nlp(j)                
+                matches = matcher(doc)
+                for match_id, start, end in matches:
+                    str_id = nlp.vocab.strings[match_id]
+                    span = doc[start:end]
+                    new_matches.append([f"{str_id}", f"{span.text}"])           
+                all_entries.append([doc, i[1], new_matches])
             #print("The lengt of all entrys is", len(all_entries), "Added", [entrys, i[1]])
             counter += 1
             if counter % 100 == 0:

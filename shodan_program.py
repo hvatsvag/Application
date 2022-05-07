@@ -20,18 +20,18 @@ async def shodan_search(ipv4):
     #print("Time for response is", datetime.now() - time_now)
     return api.host(ipv4)
 
-async def check_ipv4(list):#, filter_type):
+async def check_ipv4(entry):#, filter_type):
     info_list = []
     try_list = "["
     count_list = 0
     return_error = None
     before_search = datetime.now()
-    if list != None:
+    if entry != None:
         
-        for i in list:
-            try:
+
+        try:
                 #print(i)
-                j = [[["", None, ""], i[1], i[2]]]
+            j = [["", None, ""], entry[1], entry[2]]
                 #print(i[0])
                 #loop = asyncio.get_running_loop
                 # Search Shodan
@@ -47,58 +47,57 @@ async def check_ipv4(list):#, filter_type):
                 #    print("Sleeping")
                 #    await asyncio.sleep(0.1)
                 
-                results = await shodan_search(i[0])
-                before_search = datetime.now()
-                print("The shodan search did take", (datetime.now() - before_search), "And the time is", datetime.now())
+            results = await shodan_search(entry[0])
+            before_search = datetime.now()
+            print("The shodan search did take", (datetime.now() - before_search), "And the time is", datetime.now())
                 #print(results)
                 #print(results2)
-                count = 0
-                if results != None:
-                    additional_info = ""
-                    j[count][0][0] = "found data"
+            
+            if results != None:
+                additional_info = ""
+                j[0][0] = "found data"
                     
                         
-                    j[count][0][1] = json.dumps(results)
+                j[0][1] = json.dumps(results)
                         
-                    j[count][0][2] = i[0]
+                j[0][2] = entry[0]
                         
-                    i = j
-                else:
-                    j[count][0][0] = "No info in shodan"
-                    j[count][0][2] = i[0]
-                info_list.append(i)
-                i = j
+                entry = j
+            else:
+                j[0][0] = "No info in shodan"
+                j[0][2] = entry[0]
+            
+            
                 #while datetime.now() < time_search + timedelta(seconds=1):
                 #    await asyncio.sleep(0.1)
                 #    print("Sleeping")
-                list[count_list] = i
-                count_list += 1    
-                if count_list % 4 == 0:
-                    print(f"Showdan has searched {count_list} IP addresses")
+            entry = j
+            
+            
         #except shodan.APIError as e:
         #    print('Error: {}'.format(e))
         #    print("the IP that caused the problem was", i[0])
-            except Exception as e:
-                print("Somthing wrong", e, i[0], (datetime.now() - before_search))
-                if str(e) == "Unable to connect to Shodan" or str(e) == "Request rate limit reached (1 request/ second). Please wait a second before trying again and slow down your API calls.":
-                    print(e)
-                    break
-                j = [[["An error occured: " + str(e), None, i[0]], i[1], i[2]]]
-                i = j
+        except Exception as e:
+            print("Somthing wrong", e, entry[0], (datetime.now() - before_search))
+            if str(e) == "Unable to connect to Shodan" or str(e) == "Request rate limit reached (1 request/ second). Please wait a second before trying again and slow down your API calls.":
+                print(e)
+                return None
+            entry = [["An error occured: " + str(e), None, entry[0]], entry[1], entry[2]]
+            
                 #print([i])
-                return i
+            return entry
                 #info_list.append(i)
                 #pass   
             
             #print(try_list)
     #print("List after search is", list)    
-    return list[0]
+    return entry
 
-def insert_snort(info_ist):
+async def insert_snort(info_ist):
     f = open ("c:/Snort/rules/local.rules", "a")
     insert_info = ""
     for i in info_ist:
-        insert_info = f'alert {i["protocol"]} {i["ipv4_src"]} {i["port_src"]} -> any any (msg:'
+        insert_info += f'alert {i["protocol"]} {i["ipv4_src"]} {i["port_src"]} -> any any (msg:'
         insert_info += '"'
         insert_info += f'{i["msg"]}'
         insert_info += '";'
@@ -108,7 +107,7 @@ def insert_snort(info_ist):
     f.write(insert_info)    
     f.close()
 
-def reset_rule_table():
+async def reset_rule_table():
     f = open ("c:/Snort/rules/local.rules", "w")
     insert_info = '''
 # Copyright 2001-2022 Sourcefire, Inc. All Rights Reserved.

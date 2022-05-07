@@ -1,37 +1,43 @@
 import asyncio
-from setup_db import get_snort_count, snort_return_values, create_connection
+from setup_db import create_connection_async, get_snort_count, snort_return_values, create_connection
 from scapy.all import *
 import random
-                  
 
-async def scappy_app_main(conn):
+database = r"./database.db"                  
 
+async def scappy_app_main():
+    conn = await create_connection_async(database)
     program_running = True
     raw = Raw(b"X"*1024)
-    while program_running:
-        count = get_snort_count(conn)
+
+    count = await asyncio.create_task(get_snort_count(conn))
         #print(count)
-        
-        random_rule = str(random.randint(1, count))
+
+    random_rule = []
+    for i in range(3):    
+        random_rule.append(random.randint(1, count))
         
         
         
         #print(random_string)
-        snort_info = snort_return_values(conn, random_rule)
+    snort_info = await asyncio.create_task(snort_return_values(conn, random_rule))
         #print("Info is", snort_info)
-        for i in snort_info:
-            protocol = i[0]
+    ipv4_list = []
+    for i in snort_info:
+        protocol = i[0]
             
-            ip_address = i[1]
-            ports = i[2]
+        ip_address = i[1]
+        ipv4_list.append(ip_address)
+        ports = i[2]
             
             #print("The ports are", ports)
             #print(type(ports))
-            if protocol == "tcp":
-                send(IP(dst="10.0.0.138", src=ip_address)/TCP(dport=ports, sport=ports)/raw,inter=0.5)
-            else:
-                send(IP(dst="10.0.0.138", src=ip_address)/UDP(dport=ports, sport=ports)/raw,inter=0.5)
-        await asyncio.sleep(600)
+        if protocol == "tcp":
+            send(IP(dst="10.0.0.138", src=ip_address)/TCP(dport=ports, sport=ports)/raw,inter=0.5)
+        else:
+            send(IP(dst="10.0.0.138", src=ip_address)/UDP(dport=ports, sport=ports)/raw,inter=0.5)
+    return ipv4_list
+    #await asyncio.sleep(600)
     
     #send(IP(dst="192.168.86.1", src="5.135.162.217")/TCP(dport=[9001,9030,693], sport=[9001,9030,693])/raw,inter=0.5)
     #send(IP(dst="192.168.86.1", src="46.22.128.133")/TCP(dport=[21,8888,21], sport=[21,8888,21])/raw,inter=0.5)
@@ -47,5 +53,5 @@ if __name__ == "__main__":
     #interact(mydict=globals(), mybanner="Test add-on v3.14")
     database = r"./database.db"
 
-    conn = create_connection(database)
-    asyncio.run(scappy_app_main(conn))
+    
+    asyncio.run(scappy_app_main())
