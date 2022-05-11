@@ -2,7 +2,7 @@ import asyncio
 from cabby import create_client
 from cabby.exceptions import HTTPError, ServiceNotFoundError, NoURIProvidedError, InvalidResponseError, ClientException
 from taxii2client.v20 import Server, as_pages
-from setup_db import get_total_content, add_content, add_content_list, get_highest_content, get_name_content
+from setup_db import get_total_content, add_content_list, get_highest_content, get_name_content
 import json
 
 
@@ -143,10 +143,8 @@ async def poll_taxii2client(conn, collection):
 
         await asyncio.sleep(0.000000001)
         print("adding files", len(list_of_ents))
-        for k in list_of_ents:
-            print(k)
-            #await asyncio.sleep(10)
-            await asyncio.create_task(add_content(conn, k[0], json.dumps(k[1]), k[2]))
+        await asyncio.create_task(add_content_list(conn, list_of_ents))
+        
         list_of_ents = []
         print("Done adding files")
         await asyncio.sleep(0.001)

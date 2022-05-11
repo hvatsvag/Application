@@ -2,10 +2,10 @@ from socket import timeout
 import sqlite3
 from aiosqlite import Error
 from datetime import datetime
-#from datetime import datetime
 from cabby import exceptions as cabby_err
 import json
-from shodan_program import insert_snort
+#from snort_implementation.main import insert_snort
+
 import asyncio
 import aiosqlite
 
@@ -13,21 +13,7 @@ import aiosqlite
 
 database = r"./database.db"
 
-def create_connection(db_file):
-    """ create a database connection to the SQLite database
-        specified by db_file
-    :param db_file: database file
-    :return: Connection object or None
-    """
-    conn = None
-    try:
-        conn = sqlite3.connect(db_file, uri=True)
-        return conn
-    except Error as e:
-        print(e, e.args[0])
-
-    return conn
-
+# Creates a connection to the database. If the database do not exist, it creates the database with tables and indexes
 async def create_connection_async(db_file):
 
     """ create a database connection to the SQLite database
@@ -56,7 +42,7 @@ async def create_connection_async(db_file):
     return conn
 
 
-
+# Used to create tables in the sqlite3 database
 async def create_table(conn, create_table_sql):
     """ create a table from the create_table_sql statement
     :param conn: Connection object
@@ -114,7 +100,7 @@ sql_create_snort_table = """CREATE TABLE IF NOT EXISTS snort (
 
 
 
-
+# Uset to set up indexes that increase query speed.
 async def add_indexes(conn):
     
     '''
@@ -140,24 +126,8 @@ async def add_indexes(conn):
         pass
 
         
-async def add_content(conn, name, text, source):
-    """
-    Add a new source into the content table
-    :param conn:
-    :param name:
-    :param text:
-    :param source:
-    
-    """
-    sql = ''' INSERT INTO content(name, content_text, source) VALUES(?, ?, ?) '''
-    try:
-        async with conn.cursor() as c:
-            await c.execute(sql, (name, text, source))
-            await c.commit()
-    except Error as e:
-        print(e)
-        pass
 
+# used to insert STIX files into the content table. Used in the cabby_implementation/main.py in the function collection_poll_auto that collect STIX files.
 async def add_content_list(conn, content_list):
     """
     Add a new source into the content table
@@ -179,29 +149,8 @@ async def add_content_list(conn, content_list):
         pass
 
 
-async def add_spacy(info, info_label, content_id):
-    conn = await asyncio.create_task(create_connection_async(database))
-    """
-    Add a new source into the spacy table
-    :param conn:
-    :param info:
-    :param info_label:
-    
-    :param content_id:
-    
-    """
 
-    sql = ''' INSERT INTO spacy(info, info_label, content_id) VALUES(?, ?, ?) '''
-    #cur = conn.cursor()
-    try:
-        
-        await conn.execute(sql, (info, info_label, content_id))
-        await conn.commit()
-    except Error as e:
-        
-        print(e, e.args[0])
-        pass
-
+# Used to insert a list of information into the spacy table from the spacy_processing function in spacy_implementation/main.py
 async def add_spacy_list(conn, list_spacy):
     
     """
@@ -225,6 +174,7 @@ async def add_spacy_list(conn, list_spacy):
         pass
     
 
+# This function is used to add content into the shodan table from the function async_shodan in shodan_implementation/main.py
 async def add_shodan(conn, info_list):
     """
     Add a new source into the spacy table
@@ -246,55 +196,7 @@ async def add_shodan(conn, info_list):
         pass
      
     
-
-
-async def add_snort(ipv4, msg, content_id, port_src="any", protocol="any"):
-    conn = await asyncio.create_task(create_connection_async(database))
-    #print(f"ipv4=", {ipv4}, "msg:", {msg}, "content_id:", {content_id}, "port_src:", {port_src}, "protocol:", {protocol}, "destination:", {destination}, "port:", {port})
-    """
-    Add a new source into the source table
-    
-    param:  protocol
-    param:  ipv4_src
-    param:  port_src
-    param:  destination
-    param:  port
-    param:  msg
-    param:  content_id
-
-    
-    """
-
-    sql = ''' INSERT INTO snort(protocol, ipv4_src, port_src, msg, content_id) VALUES(?,?,?,?,?) '''
-    #cur = conn.cursor()
-    
-    try:
-        if ipv4 != "" and content_id != "":
-            await conn.execute(sql, (protocol, ipv4, port_src, msg, content_id))
-            cursor = await conn.execute('select sid from snort where sid=(select max(sid) from snort)')
-            cur = await cursor.fetchone()
-
-            info = {
-                    "sid": "1000000",
-                    "protocol": protocol,
-                    "ipv4_src": ipv4,
-                    "port_src": port_src,
-                    "msg": msg
-                }
-            #print(info)
-            for row in cur:
-                (sid, ) = row
-                info["sid"] = str(int(info["sid"]) + sid)
-            #print(info)
-            
-            insert_snort(info)
-            #info["sid"] = str(int(info["sid"]) + 1)
-            await conn.commit()
-    except Error as e:
-        
-        print(e, e.args[0])
-        pass
-
+# This function is used to add content to the snort table. Activated by snort_entry_creation in snort_implementation/main.py
 async def add_multiple_snort(conn, list_snort):
     """
     Add multiple new source into the source table, each element contain:
@@ -318,9 +220,11 @@ async def add_multiple_snort(conn, list_snort):
             await c.execute('COMMIT')
             await c.close()
     except Error as e:
-        
         print(e, "add_multiple_snort", e.args[0])
         pass
+
+# Used to collect info used for compressed snort rules. Used bu function insert_snort_rules in snort_implementation/main.py
+async def collect_compressed_snort_info(conn):
     info_content = {}
     try:
         async with conn.cursor() as c:
@@ -341,14 +245,15 @@ async def add_multiple_snort(conn, list_snort):
     except Error as e:
         print(e)
         pass
-    await insert_snort(info_content)
+    return info_content
 
         
         
 
 
 
-
+# This function returns the highest content id for a source in the content table. Returns 0 if there are no entries for the source.
+# This number is used in the collection_poll_auto function in cabby_implementation/main.py
 async def get_highest_content(conn, source):
     sql = 'select max(content_id) from content where source=(?)'
     try:
@@ -369,6 +274,8 @@ async def get_highest_content(conn, source):
         print(e)
         pass
 
+# This function returns the highest content id for a source in the content table. Returns None if there are no entries for the source.
+# This number is used in the collection_poll_auto function in cabby_implementation/main.py
 async def get_total_content(conn, source):
     sql = 'select count(*) from content where source=(?)'
     try:
@@ -383,33 +290,8 @@ async def get_total_content(conn, source):
         print(e)
         pass
 
-async def get_all_ipv4_spacy(label):
-    conn = await asyncio.create_task(create_connection_async(database))
-    try:
-        
-        list_of_info = []
-        #cur = conn.cursor()
-        cursor = await conn.execute('select max(shodan_id) from shodan')
-        test1 = await cursor.fetchone()
-        (result,) = test1
-        test = result
-        await cursor.close()
-        sql = ""
-        if test != None:
-            sql = 'select info, max(info_id) from spacy where info_label=(?) and info not in (select distinct(info_spacy) from shodan) group by info'
-        else:
-            sql = 'select info, max(info_id) from spacy where info_label=(?) group by info'
-        cursor = await conn.execute(sql, (label,))
-        rows = await cursor.fetchall()
-        for row in rows:
-            (info, info_id) = row
-            list_of_info.append([info, label, info_id])
-        await cursor.close()
-        return list_of_info
-    except Error as e:
-        print(e, e.args[0])
-        pass    
-
+# This function is used to collect IPv4 addresses that shal be used in the spacy implementation. Used in the function async_shodan.
+# Also used in async_spacy_auto in spacy_implementation, if it return 0 and no STIX files are ready to be processed, it initiate new download/poll.
 async def get_ipv4_spacy(conn, label):
     try:
         list_of_info = []
@@ -434,6 +316,7 @@ async def get_ipv4_spacy(conn, label):
         print(e)
         pass    
 
+# This function is used in scappy_package_simulation in scapy_implementation/main.py, and is used for deciding max when picking snort entries whith randint.
 async def get_snort_count(conn):
     try:
         async with conn.cursor() as c:
@@ -447,6 +330,7 @@ async def get_snort_count(conn):
         print(e)
         pass
 
+# This function is used in scappy_package_simulation in scapy_implementation/main.py, and is used collect infor for creating packages.
 async def snort_return_values(conn, id_list):
     values = []
     try:
@@ -468,44 +352,9 @@ async def snort_return_values(conn, id_list):
         print(e)
         pass
 
-async def get_all_label_spacy(description):
-    conn = await asyncio.create_task(create_connection_async(database))
-    try:
-        table_of_content = []
-        #cur = conn.cursor()
-        sql = 'select info from spacy where info_label=(?)'
-        cursor = await conn.execute(sql, (description,))
-        rows = await cursor.fetchall()
-        for row in rows:
-            (info,) = row
-            table_of_content.append(info)
-        await cursor.close()    
-        return table_of_content
-    except Error as e:
-        print(e, e.args[0])
-        pass
 
-async def fix_port():
-    conn = await asyncio.create_task(create_connection_async(database))
-    id_list = []
-    rows = None
-    async with conn.cursor() as c:
-        await c.execute("select info_id, info from spacy where info_label='transport'")
-        rows = await c.fetchall()
-    for row in rows:
-        (info_id, info) = row
-        try:
-            test_num = int(info)
-            id_list.append(info_id)
-        except:
-            pass
-    result_sign = ','.join('?' for i in range(len(id_list)))
-    sql = f"update spacy set info_label='Port' where info_id in ({result_sign})"
-    async with conn.cursor() as c:
-        await c.execute(sql, id_list)
-        await c.execute('commit')
-
-        
+# This function is used to colelct STIX files to use in async_spacy_auto in spacy_implementation/main.py
+#  The function first check if there is any entries in the spacy table, to decide which query to use.      
 async def get_text_content(conn):
     content_list = []
     try:
@@ -538,6 +387,8 @@ async def get_text_content(conn):
         print(e)
         pass
 
+
+# This is a series of queries used to sequentially collect info about the program, which is displayed in the GUI (app.py).
 async def get_status_info(conn):
     tables = ["content", "spacy", "shodan", "snort"]
     results = []
@@ -578,6 +429,7 @@ async def get_status_info(conn):
     #print(results)
     return results
 
+# This function has been initiated manually to collect infor used in the report.
 async def extract_results(list_servers):
     conn = await asyncio.create_task(create_connection_async(database))
     #cur = conn.cursor()
@@ -611,7 +463,7 @@ async def extract_results(list_servers):
 
 
 
-
+# This function is used to collect the date and time for a specified STIX file in the content table. Used in collection_poll_auto function in cabby_implementation/main.py
 async def get_name_content(conn, content_id):
     sql = 'select name from content where content_id=(?)'
     try:
@@ -626,92 +478,10 @@ async def get_name_content(conn, content_id):
         print(e, e.args[0])
         pass     
 
-async def get_all_content(content_id):
-    conn = await asyncio.create_task(create_connection_async(database))
-    
-    
-    try:
-        #cur = conn.cursor()
-        sql = 'select * from content where content_id=(?)'
-        cursor = await conn.execute(sql, (content_id,))
-        rows = await cursor.fetchone()
-        content = None
-        for row in rows:
-            (content_id, name, content_text, source) = row
-            #print("This is the content of the entry", name, content_text, source)
-            content = [name, content_text, source]
-        await cursor.close()
-        return content[0], content[1], content[2]
-        
-    except Error as e:
-        print(e, e.args[0])
-        pass
-        
 
-        
-async def collect_stix_info(client, source_name, NUMBER):
-    conn = await asyncio.create_task(create_connection_async(database))
-    try:
-        #
-        # content_blocks = None
-        #cnts = []
-        highest_id = await asyncio.create_task(get_highest_content(conn, source_name))
-
-        #if source_name == "vxvault" or source_name == "hailataxii.guest.CyberCrime_Tracker" or source_name == "hailataxii.guest.MalwareDomainList_Hostlist" or source_name == "hailataxii.guest.Abuse_ch":
-        #    return
-
-        #print(f"the highest id is {highest_id} and the source_name is {source_name}")
-
-        newest_date = await asyncio.create_task(get_name_content(conn, highest_id))
-        print(f"newest date is {newest_date} and the source_name is {source_name}. The id is {highest_id}")
-
-        
-        content_blocks = client.poll(collection_name=source_name)#, begin_date=newest_date)
-        if source_name == "user_AlienVault" or source_name == "vxvault":
-            content_blocks = client.poll(collection_name=source_name, begin_date=newest_date)
-
-        NUMBER_OF_MSGS = NUMBER
-        tmp_cnt_msg = 0
-        list_of_ents = []
-        for block in content_blocks:
-            cnt = block.content
-            #cnts.append([cnt, str(block.timestamp)])
-            if (tmp_cnt_msg + 1) % 1000 == 0:
-                print(f"getting block {tmp_cnt_msg + 1} {source_name} with timestamp {block.timestamp}")
-            list_of_ents.append([str(block.timestamp), cnt, source_name])
-            #add_content(conn, str(block.timestamp), cnt, source_name)
-
-
-            tmp_cnt_msg += 1
-            if tmp_cnt_msg % 1000 == 0:
-                for i in list_of_ents:
-                    task = await asyncio.create_task(add_content(conn, i[0], i[1], i[2]))
-                list_of_ents = []
-                await asyncio.sleep(1)
-            if tmp_cnt_msg >= NUMBER_OF_MSGS:
-                print(f"Got {tmp_cnt_msg} files from {source_name}")
-                #for i in list_of_ents:
-                #    add_content(conn, i[0], i[1], i[2])
-                break
-        if tmp_cnt_msg % 1000 == 0:
-            for i in list_of_ents:
-                task = await asyncio.create_task(add_content(conn, i[0], i[1], i[2]))
-        #for ecnt in cnts:
-        #    add_content(conn, ecnt[1], ecnt[0], source_name)
-        #for i in list_of_ents:
-            
-    except Error as e:
-        print(e, e.args[0])
-        pass
-
-
-
-         
 
    
-
-   
-
+# Used to reset the snort table. This is sequentially done to make sure that info from all STIX files are used when inserting into the snort table
 async def reset_snort_table(conn):
     
 
@@ -724,9 +494,10 @@ async def reset_snort_table(conn):
         pass
     await asyncio.create_task(create_table(conn, sql_create_snort_table))
     
-
-
-async def insert_snort_info(conn):
+# This function returns a list of IPv4 addresses that have got data when searched for in shodan.io, unless the data contain
+# HTTP/1.1 301 Moved Permanently or HTTP/1.1 302 Moved or already is in the snort table. 
+# This is used when desiding what IPv4 addresses to create rules for snort. used by async_snort function in snort_implementation/main.py
+async def collect_ipv4_for_snort(conn):
     try:
         sql = ""
         result = "" 
@@ -743,23 +514,27 @@ async def insert_snort_info(conn):
         async with conn.cursor() as c:
             await c.execute(sql)
             rows = await c.fetchall()
-            
-            
-
-
             for row in rows:
                 (info, ) = row
                 result.append(info)
+        return result
+    except Error as e:
+        print(e)
+        pass
 
-        ip_dict = {}
-        content_id_dict = {}
-        snort_list = []
-        result_sign = ','.join('?' for i in range(len(result)))
-        print("IPv4 addresses extracted", datetime.now(), "\n And ready to find relevant info")
-        sql = (f'select content_id, info, info_label from spacy where content_id in (select distinct(content_id) from spacy where info in ({result_sign}))')
-        
+# This function creates to dicts that is used by snort_entry_creation in snort_implementation/main.py do create rules with as spesiffic information as possible.
+async def collect_snort_info(conn, ipv4_list):
+    
+
+    ip_dict = {}
+    content_id_dict = {}
+    
+    result_sign = ','.join('?' for i in range(len(ipv4_list)))
+    print("IPv4 addresses extracted", datetime.now(), "\n And ready to find relevant info")
+    sql = (f'select content_id, info, info_label from spacy where content_id in (select distinct(content_id) from spacy where info in ({result_sign}))')
+    try:    
         async with conn.cursor() as c:
-            await c.execute(sql, result)
+            await c.execute(sql, ipv4_list)
             rows = await c.fetchall()
             for row in rows:
                 (content_id, info, info_label) = row
@@ -772,91 +547,35 @@ async def insert_snort_info(conn):
                 elif info_label == "ipv4":
                     
                     if info not in ip_dict:
-                        if info in result:
+                        if info in ipv4_list:
                             ip_dict[info] = {'content_id': {}, 'ipv4': info}
                         else:
                             continue
                     ip_dict[info]['content_id'][content_id] = content_id
+            await c.close()
         #await cursor.close()
         print("Info added to dictionarys", datetime.now())
-        count = 0
-        for i in ip_dict:
-            count += 1
-            info = {
-                'ipv4': None,
-                'transport': {},
-                'Port': {},
-                'content_id': ""
-            }
-            info["ipv4"] = ip_dict[i]['ipv4']
-            for m in ip_dict[i]['content_id']:
-                info["content_id"] += f"{m},"
-                for j in content_id_dict[m]["Port"]:
-                    info["Port"][j] = j
-                for k in content_id_dict[m]["transport"]:
-                    info["transport"][k] = k
-            transport = []
-            ports_list = "["
-            for j in info["transport"]:
-                transport.append(j)
-            if len(transport) == 0:
-                transport = ["ip"]
-            for k in info["Port"]:
-                ports_list += f"{info['Port'][k]},"
-            ports_list = ports_list.strip(",")
-            ports_list += "]"
-            if ports_list == "[]":
-                 ports_list = "any"
-            msg = f"Alert, this ip {info['ipv4']} has been found malicios"#, se STIX files {info['content_id']}"
-            
-            for l in transport:
-                if info["ipv4"] != "01.01.01.01" and info["ipv4"] != "1.1.1.1":
-                    snort_list.append([info["ipv4"], msg, info["content_id"], ports_list, l])
-            
+        return ip_dict, content_id_dict
         
-        if len(snort_list) > 0:
-            await asyncio.create_task(add_multiple_snort(conn, snort_list))
     except Error as e:
         print(e)
         pass    
 
-async def fix_shodan_additional_info():
-    conn = await asyncio.create_task(create_connection_async(database))
-    result = []
-    sql = 'select shodan_id, additional_info from shodan'
-    async with conn.cursor() as c:
-        await c.execute(sql)
-        rows = await c.fetchall()
-        for row in rows:
-            (shodan_id, additional_info) = row
-            result.append([shodan_id, json.dumps(additional_info)])
-        sql = "update shodan set additional_info=? where shodan_id=?"
-        await c.executemany(sql, [(i[1], i[0]) for i in result])
-        await c.execute('commit')
 
-        
+# Function used to set up the database manually, if running setup_db manually        
 async def setup():
     conn = await asyncio.create_task(create_connection_async(database))
     await asyncio.create_task(setup_tables(conn))
     await conn.close()
 
-        
+# Function to set up all tables needed in the database, as well as indexes needed.     
 async def setup_tables(conn):
-    #conn = await asyncio.create_task(create_connection_async(database))
     if conn is not None:
-        #reset_snort_table(conn)
-        #await asyncio.create_task(fix_shodan_additional_info())
-        #await asyncio.create_task(insert_snort_info())
-        #await asyncio.create_task(fix_port(conn))
-        
         await asyncio.create_task(create_table(conn, sql_create_content_table))
         await asyncio.create_task(create_table(conn, sql_create_spacy_table))
-        #create_table(conn, sql_create_content_failed_table)
         await asyncio.create_task(create_table(conn, sql_create_shodan_table))
         await asyncio.create_task(create_table(conn, sql_create_snort_table))
-        
         await asyncio.create_task(add_indexes(conn))
-        
         '''
         await asyncio.create_task(extract_results(["vxvault", "user_AlienVault", "guest.CyberCrime_Tracker", "guest.EmergineThreats_rules", "guest.EmergingThreats_rules", \
             "guest.MalwareDomainList_Hostlist", "guest.Abuse_ch", "guest.Lehigh_edu", "guest.blutmagie_de_torExits", "guest.dataForLast_7daysOnly", \
