@@ -21,7 +21,7 @@ def create_connection(db_file):
     """
     conn = None
     try:
-        conn = sqlite3.connect(db_file)
+        conn = sqlite3.connect(db_file, uri=True)
         return conn
     except Error as e:
         print(e, e.args[0])
@@ -29,19 +29,29 @@ def create_connection(db_file):
     return conn
 
 async def create_connection_async(db_file):
+
     """ create a database connection to the SQLite database
         specified by db_file
     :param db_file: database file
     :return: Connection object or None
     """
     conn = None
-    try:
-        conn = await aiosqlite.connect(db_file)
-        
-        return conn
-    except Error as e:
-        print(e, e.args[0])
-        
+    from os.path import isfile
+    if not isfile(db_file):
+        try:
+            conn = await aiosqlite.connect(db_file, uri=True)
+        except Error as e:
+            print(e)
+        await asyncio.create_task(setup_tables(conn))
+    
+    else:
+        try:
+            conn = await aiosqlite.connect(db_file, uri=True)
+            
+            return conn
+        except Error as e:
+            print(e)
+            
 
     return conn
 
@@ -54,12 +64,14 @@ async def create_table(conn, create_table_sql):
     :return:
     """
     try:
-        await conn.execute(create_table_sql)
+        async with conn.cursor() as c:
+            await c.execute(create_table_sql)
+            await c.close()
         #await cursor
         #c = conn.cursor()
         #c.execute(create_table_sql)
     except Error as e:
-        print(e, e.args[0])
+        print(e)
         
 sql_create_content_table = """CREATE TABLE IF NOT EXISTS content (
                                 content_id INTeger PRIMARY KEY autoincrement,
@@ -104,6 +116,7 @@ sql_create_snort_table = """CREATE TABLE IF NOT EXISTS snort (
 
 
 async def add_indexes(conn):
+    
     '''
     :param conn:
     
@@ -123,7 +136,7 @@ async def add_indexes(conn):
             await c.execute('commit')
     except Error as e:
         
-        print(e, e.args[0])
+        print(e)
         pass
 
         
@@ -136,16 +149,13 @@ async def add_content(conn, name, text, source):
     :param source:
     
     """
-
     sql = ''' INSERT INTO content(name, content_text, source) VALUES(?, ?, ?) '''
-    #cur = conn.cursor()
     try:
-        
-        await conn.execute(sql, (name, text, source))
-        await conn.commit()
+        async with conn.cursor() as c:
+            await c.execute(sql, (name, text, source))
+            await c.commit()
     except Error as e:
-        
-        print(e, e.args[0])
+        print(e)
         pass
 
 async def add_content_list(conn, content_list):
@@ -159,19 +169,18 @@ async def add_content_list(conn, content_list):
     """
 
     sql = ''' INSERT INTO content(name, content_text, source) VALUES(?, ?, ?) '''
-    #cur = conn.cursor()
     try:
         
         async with conn.cursor() as c:
             await c.executemany(sql, [(x[0], x[1], x[2]) for x in content_list])
             await c.execute('commit')
     except Error as e:
-        
-        print(e, e.args[0])
+        print(e)
         pass
 
 
-async def add_spacy(conn, info, info_label, content_id):
+async def add_spacy(info, info_label, content_id):
+    conn = await asyncio.create_task(create_connection_async(database))
     """
     Add a new source into the spacy table
     :param conn:
@@ -194,6 +203,7 @@ async def add_spacy(conn, info, info_label, content_id):
         pass
 
 async def add_spacy_list(conn, list_spacy):
+    
     """
     Add a new source into the spacy table
     :param conn:
@@ -211,21 +221,9 @@ async def add_spacy_list(conn, list_spacy):
             await c.execute('COMMIT')
     except Error as e:
         
-        print(e, "add_spacy_list", e.args[0])
+        print(e)
         pass
-    '''
-    for i in list_spacy:
-        [info, info_label, content_id] = i
-        try:
-        
-            await conn.execute(sql, (info, info_label, content_id))
-        
-        except Error as e:
-        
-            print(e)
-            pass
-    await conn.commit()
-    '''
+    
 
 async def add_shodan(conn, info_list):
     """
@@ -241,39 +239,17 @@ async def add_shodan(conn, info_list):
     try:
         async with conn.cursor() as c:
             await c.executemany(sql, [(i[0][0], i[0][1], i[1], i[0][2], i[2]) for i in info_list])
-            await c.execute('commit')
-        '''
-        for i in info_list:
-        #print("I is", i)
-        #print(i)
-        #if i[0] != 'No info in shodan':
-            for j in i:
-            #print("j is",j)
-                if j[0][2] == "":
-                    continue
-                sql = ' INSERT INTO shodan(info, additional_info, info_label, info_spacy, spacy_id) VALUES(?, ?, ?, ?, ?) '
-                await conn.execute(sql, (j[0][0], j[0][1], j[1], j[0][2], j[2]))
-                #print(type(j[0][1]), "This is the type inserted")  
-        await conn.commit()  
-        '''                        
+            await c.execute('commit')                     
     except Error as e:
         #conn.commit()     
         print(e, e.args[0])
         pass
-        '''
-        Tryed to fix this
-        else:
-            try:
-                sql = ' INSERT INTO shodan(info, info_label, spacy_id) VALUES(?, ?, ?) '
-                cur.execute(sql, (i[0], i[1], i[2]))
-                    
-            except Error as e:
-                print(e)
-        '''        
+     
     
 
 
-async def add_snort(conn, ipv4, msg, content_id, port_src="any", protocol="any"):
+async def add_snort(ipv4, msg, content_id, port_src="any", protocol="any"):
+    conn = await asyncio.create_task(create_connection_async(database))
     #print(f"ipv4=", {ipv4}, "msg:", {msg}, "content_id:", {content_id}, "port_src:", {port_src}, "protocol:", {protocol}, "destination:", {destination}, "port:", {port})
     """
     Add a new source into the source table
@@ -320,7 +296,6 @@ async def add_snort(conn, ipv4, msg, content_id, port_src="any", protocol="any")
         pass
 
 async def add_multiple_snort(conn, list_snort):
-    #print(f"ipv4=", {ipv4}, "msg:", {msg}, "content_id:", {content_id}, "port_src:", {port_src}, "protocol:", {protocol}, "destination:", {destination}, "port:", {port})
     """
     Add multiple new source into the source table, each element contain:
     
@@ -341,32 +316,33 @@ async def add_multiple_snort(conn, list_snort):
         async with conn.cursor() as c:
             await c.executemany(sql, [(i[4], i[0], i[3], i[1], i[2]) for i in list_snort])
             await c.execute('COMMIT')
+            await c.close()
     except Error as e:
         
         print(e, "add_multiple_snort", e.args[0])
         pass
-    cursor = await conn.execute('select sid from snort where sid=(select max(sid) from snort)')
-    row = await cursor.fetchone()
-    (sid, ) = row
-    this_sid = 1000000 + sid
-    await conn.commit()
-    #cur = conn.cursor()
-    info_list = []
-    for i in list_snort:
-        if i[0] != "" and i[2] != "":
-            info = {
-                    "sid": this_sid,
-                    "protocol": i[4],
-                    "ipv4_src": i[0],
-                    "port_src": i[3],
-                    "msg": i[1]
-            }
+    info_content = {}
+    try:
+        async with conn.cursor() as c:
+            await c.execute('select protocol, ipv4_src, port_src from snort')
+            rows = await c.fetchall()
+            for row in rows:
+                (protocol, ipv4src, port_src) = row
+                if port_src not in info_content:
+                    info_content[port_src] = {
+                        "Ports": port_src,
+                        "ipv4src": {}
+                    }
+                if ipv4src not in info_content[port_src]["ipv4src"]:
+                    info_content[port_src]["ipv4src"][ipv4src] = {"ipv4src": ipv4src, "protocols": {}}
+                if protocol not in info_content[port_src]["ipv4src"][ipv4src]["protocols"]:
+                    info_content[port_src]["ipv4src"][ipv4src]["protocols"][protocol] = protocol
+            await c.close()
+    except Error as e:
+        print(e)
+        pass
+    await insert_snort(info_content)
 
-            info_list.append(info)
-            this_sid -= 1
-       
-    await insert_snort(info_list)
-                #info["sid"] = str(int(info["sid"]) + 1)
         
         
 
@@ -374,49 +350,41 @@ async def add_multiple_snort(conn, list_snort):
 
 
 async def get_highest_content(conn, source):
+    sql = 'select max(content_id) from content where source=(?)'
     try:
-        #cur = conn.cursor()
-        sql = 'select max(content_id) from content where source=(?)'
-        cursor = await conn.execute(sql, (source,))
-        row = await cursor.fetchone()
-        print(row)
-        if 0 in row:
-            await cursor.close()
-            return 0
-        (content_id_stix,) = row
-        content_id = content_id_stix
-        #for row in rows:
-        #    (content_id_stix,) = row
-        #    content_id = content_id_stix
-        await cursor.close()
-        return content_id
+        async with conn.cursor() as c:
+            await c.execute(sql, (source,))
+            row = await c.fetchone()
+            print(row)
+            if 0 in row:
+                await c.close()
+                return 0
+            (content_id_stix,) = row
+            content_id = content_id_stix
+
+            await c.close()
+            return content_id
 
     except Error as e:
-        print(e, e.args[0])
+        print(e)
         pass
 
 async def get_total_content(conn, source):
+    sql = 'select count(*) from content where source=(?)'
     try:
-        #cur = conn.cursor()
-        sql = 'select count(*) from content where source=(?)'
-        cursor = await conn.execute(sql, (source,))
-        row = await cursor.fetchone()
-        #count = None
-        #if 0 in rows:
-        #    return 0
-        (count_total,) = row
-        count = count_total
-        #print("count is", count)
-        #for row in rows:
-        #    (this_count,) = row
-        #    count = this_count
-        await cursor.close()
-        return count
+        async with conn.cursor() as c:
+            await c.execute(sql, (source,))
+            row = await c.fetchone()
+            (count_total,) = row
+            count = count_total
+            await c.close()
+            return count
     except Error as e:
-        print(e, e.args[0])
+        print(e)
         pass
 
-async def get_all_ipv4_spacy(conn, label):
+async def get_all_ipv4_spacy(label):
+    conn = await asyncio.create_task(create_connection_async(database))
     try:
         
         list_of_info = []
@@ -443,76 +411,65 @@ async def get_all_ipv4_spacy(conn, label):
         pass    
 
 async def get_ipv4_spacy(conn, label):
-    
-    
     try:
-        
         list_of_info = []
-        #cur = conn.cursor()
         test1 = None
         async with conn.cursor() as c:
 
             await c.execute('select max(shodan_id) from shodan')
             test1 = await c.fetchone()
-        
         sql = ""
         if None in test1:
-            sql = 'select info, info_id from spacy where info_label=(?) limit 100'
+            sql = 'select info, info_id from spacy where info_label=(?) group by info limit 30'
         else:
-            sql = 'select info, info_id from spacy where info_label=(?) and info not in (select distinct(info_spacy) from shodan) group by info limit 100'
-        
-        #await cursor.close()
-        
+            sql = 'select info, info_id from spacy where info_label=(?) and info not in (select distinct(info_spacy) from shodan) group by info limit 30'
         async with conn.cursor() as c:
-            
             await c.execute(sql, (label,))
             rows = await c.fetchall()
             for row in rows:
                 (info, info_id) = row
                 list_of_info.append([info, label, info_id])
-        #await cursor.close()
-        #if list_of_info
         return list_of_info
     except Error as e:
-        print(e, e.args[0])
+        print(e)
         pass    
 
 async def get_snort_count(conn):
     try:
-        #cur = conn.cursor()
-        cursor = await conn.execute('select count(*) from snort')
-        row = await cursor.fetchone()
-        (this_count,) = row
-        count = this_count
-        await cursor.close()
-        return count
+        async with conn.cursor() as c:
+            await c.execute('select count(*) from snort')
+            row = await c.fetchone()
+            (this_count,) = row
+            count = this_count
+            await c.close()
+            return count
     except Error as e:
-        print(e, e.args[0])
+        print(e)
         pass
 
 async def snort_return_values(conn, id_list):
     values = []
     try:
-        #cur = conn.cursor()
-        #print(id_list)
         result_sign = ','.join('?' for i in range(len(id_list)))
         sql = f'select protocol, ipv4_src, port_src from snort where sid in ({result_sign})'
-        cursor = await conn.execute(sql, id_list)
-        rows = await cursor.fetchall()
-        for row in rows:
-            (protocol, ipv4_src, port_src) = row
-            print(protocol, ipv4_src, port_src)
-            if port_src == "any":
-                port_src = [80, 443]
-            values.append([protocol, ipv4_src, port_src])
-        await cursor.close()
+        async with conn.cursor() as c:
+            await c.execute(sql, id_list)
+            rows = await c.fetchall()
+            for row in rows:
+                (protocol, ipv4_src, port_src) = row
+                print(protocol, ipv4_src, port_src)
+                if port_src == "any":
+                    port_src = [80, 443]
+                values.append([protocol, ipv4_src, port_src])
+            await c.close()
         #print(values)
         return values
     except Error as e:
-        print(e, e.args[0])
+        print(e)
         pass
 
-async def get_all_label_spacy(conn, description):
+async def get_all_label_spacy(description):
+    conn = await asyncio.create_task(create_connection_async(database))
     try:
         table_of_content = []
         #cur = conn.cursor()
@@ -528,7 +485,8 @@ async def get_all_label_spacy(conn, description):
         print(e, e.args[0])
         pass
 
-async def fix_port(conn):
+async def fix_port():
+    conn = await asyncio.create_task(create_connection_async(database))
     id_list = []
     rows = None
     async with conn.cursor() as c:
@@ -549,41 +507,39 @@ async def fix_port(conn):
 
         
 async def get_text_content(conn):
-    
-    
-    
+    content_list = []
     try:
-        #cur = conn.cursor()
-        
-        sql = "select content_text, content_id from content WHERE content_id > (select max(content_id) from spacy)"
+        test1 = None
+        async with conn.cursor() as c:
+
+            await c.execute('select max(content_id) from spacy')
+            test1 = await c.fetchone()
+        sql = ""
+        if None in test1:
+            sql = 'select content_text, content_id from content'
+        else:
+            sql = "select content_text, content_id from content WHERE content_id > (select max(content_id) from spacy)"
         
         sql = sql + " limit 4000"
         print(sql)
-            
-        
-        #
+
         async with conn.cursor() as c:
             await c.execute(sql)
             rows = await c.fetchall()
-            content_list = []
-            #print(len(cur))
+            
             if None in rows:
                 return content_list
             for row in rows:
                 (content_text, content_id) = row
                 content_list.append([content_text, content_id])
-            #print(len(content_list))
-        #print(len(content_list))
-        #await cursor.close()
+
         return content_list
     except Error as e:
-        print(e, e.args[0])
+        print(e)
         pass
 
 async def get_status_info(conn):
     tables = ["content", "spacy", "shodan", "snort"]
-    #cur = conn.cursor()
-    
     results = []
     for i in tables:
         try:
@@ -591,12 +547,11 @@ async def get_status_info(conn):
             async with conn.cursor() as c:
                 await c.execute(sql)
                 row = await c.fetchone()
-            #print(row)
                 (count, ) = row  
                 results.append(f"{i} has {count} entryes in it's table")
-            #await cursor.close()
+                await c.close()
         except Error as e:
-            print(e, e.args[0])
+            print(e)
             pass
     try:
         sql = "select count(*) from content WHERE content_id not in (select content_id from spacy)"
@@ -605,9 +560,9 @@ async def get_status_info(conn):
             row = await c.fetchone()
             (count, ) = row  
             results.append(f"The amount of files left to process is {count}")
-        #await cursor.close()
+            await c.close()
     except Error as e:
-        print(e, e.args[0])
+        print(e)
         pass
     try:
         sql = "select count(distinct(info)) from spacy where info_label=('ipv4') and info not in (select distinct(info_spacy) from shodan)"
@@ -616,14 +571,15 @@ async def get_status_info(conn):
             row = await c.fetchone()
             (count, ) = row  
             results.append(f"The amount of IPv4 addresses left to search is {count}")
-            #await cursor.close()
+            await c.close()
     except Error as e:
-        print(e, e.args[0])
+        print(e)
         pass
     #print(results)
     return results
 
-async def extract_results(conn, list_servers):
+async def extract_results(list_servers):
+    conn = await asyncio.create_task(create_connection_async(database))
     #cur = conn.cursor()
     list_sql = [
         ["select count(content_id) from content where source=(?)", "The amount of files stored in"],
@@ -657,25 +613,21 @@ async def extract_results(conn, list_servers):
 
 
 async def get_name_content(conn, content_id):
-    
-    
-    
+    sql = 'select name from content where content_id=(?)'
     try:
-        #cur = conn.cursor()
-        sql = 'select name from content where content_id=(?)'
-        cursor = await conn.execute(sql, (content_id,))
-        row = await cursor.fetchone()
-        (this_name,) = row
-        name = this_name
-        
-        await cursor.close()
-        return name
+        async with conn.cursor() as c:
+            await c.execute(sql, (content_id,))
+            row = await c.fetchone()
+            (this_name,) = row
+            name = this_name
+            await c.close()
+            return name
     except Error as e:
         print(e, e.args[0])
         pass     
 
-async def get_all_content(conn, content_id):
-    
+async def get_all_content(content_id):
+    conn = await asyncio.create_task(create_connection_async(database))
     
     
     try:
@@ -697,7 +649,8 @@ async def get_all_content(conn, content_id):
         
 
         
-async def collect_stix_info(conn, client, source_name, NUMBER):
+async def collect_stix_info(client, source_name, NUMBER):
+    conn = await asyncio.create_task(create_connection_async(database))
     try:
         #
         # content_blocks = None
@@ -760,57 +713,48 @@ async def collect_stix_info(conn, client, source_name, NUMBER):
    
 
 async def reset_snort_table(conn):
-    #cur = conn.cursor()
+    
 
     try:
-        await conn.execute('drop table snort')
-        await conn.commit()
+        async with conn.cursor() as c:
+            await c.execute('drop table snort')
+            await c.execute('commit')
     except Error as e:
-        print(e, e.args[0])
+        print(e)
         pass
     await asyncio.create_task(create_table(conn, sql_create_snort_table))
     
 
 
 async def insert_snort_info(conn):
-    #cur = conn.cursor()
-    # First, fint the amount of IPv4 addresses that need to be put into the snort table
-    #print(conn)
     try:
         sql = ""
         result = "" 
         async with conn.cursor() as c:
             await c.execute('select max(sid) from snort')
-            rows = await c.fetchone()
-        #print(rows)
-            if None in rows:
-                sql = ' select distinct(info) from spacy where info in (select distinct(info_spacy) from shodan where info in ("found data") )'
+            row = await c.fetchone()
+            if None in row:
+                sql = 'select distinct(info) from spacy where info in (select distinct(info_spacy) from shodan where info in ("found data") and shodan_id not in (select shodan_id from shodan where additional_info like "%HTTP/1.1 301 Moved Permanently%" or additional_info like "%HTTP/1.1 302 Moved%" ) )'
             else:
-                sql =' select distinct(info) from spacy where info in (select distinct(info_spacy) from shodan where info in ("found data") and info_spacy not in (select ipv4_src from snort) )'
-        #await cursor.close()
+                sql =' select distinct(info) from spacy where info in (select distinct(info_spacy) from shodan where info in ("found data") and info_spacy not in (select ipv4_src from snort) and shodan_id not in (select shodan_id from shodan where additional_info like "%HTTP/1.1 301 Moved Permanently%" or additional_info like "%HTTP/1.1 302 Moved%"  ))'
+            await c.close()
         print("Searching for IPv4 addresses", datetime.now())
-        
-            
         result = []
         async with conn.cursor() as c:
             await c.execute(sql)
             rows = await c.fetchall()
-        #print("Search for IPv4 addresses queried", datetime.now())
-            msg = ""
-        #ports_list = "["
-            ip_dict = {}
-            content_id_dict = {}
-            snort_list = []
+            
+            
 
 
             for row in rows:
                 (info, ) = row
                 result.append(info)
-        #await cursor.close()
+
+        ip_dict = {}
+        content_id_dict = {}
+        snort_list = []
         result_sign = ','.join('?' for i in range(len(result)))
-        #result = str(result)
-        #result = result.replace("[", "")
-        #result = result.replace("]", "")
         print("IPv4 addresses extracted", datetime.now(), "\n And ready to find relevant info")
         sql = (f'select content_id, info, info_label from spacy where content_id in (select distinct(content_id) from spacy where info in ({result_sign}))')
         
@@ -845,49 +789,64 @@ async def insert_snort_info(conn):
                 'content_id': ""
             }
             info["ipv4"] = ip_dict[i]['ipv4']
-            for i in ip_dict[i]['content_id']:
-                info["content_id"] += f"{i},"
-                for j in content_id_dict[i]["Port"]:
+            for m in ip_dict[i]['content_id']:
+                info["content_id"] += f"{m},"
+                for j in content_id_dict[m]["Port"]:
                     info["Port"][j] = j
-                for k in content_id_dict[i]["transport"]:
+                for k in content_id_dict[m]["transport"]:
                     info["transport"][k] = k
-                transport = []
-                ports_list = "["
-                for j in info["transport"]:
-                    transport.append(j)
-                if len(transport) == 0:
-                    transport = ["tcp", "udp", "ip"]
-                for k in info["Port"]:
-                    ports_list += f"{info['Port'][k]},"
-                ports_list = ports_list.strip(",")
-                ports_list += "]"
-                if ports_list == "[]":
-                    ports_list = "any"
+            transport = []
+            ports_list = "["
+            for j in info["transport"]:
+                transport.append(j)
+            if len(transport) == 0:
+                transport = ["ip"]
+            for k in info["Port"]:
+                ports_list += f"{info['Port'][k]},"
+            ports_list = ports_list.strip(",")
+            ports_list += "]"
+            if ports_list == "[]":
+                 ports_list = "any"
             msg = f"Alert, this ip {info['ipv4']} has been found malicios"#, se STIX files {info['content_id']}"
-            if len(msg) > 2040:
-                msg = msg[:2040]
+            
             for l in transport:
-                snort_list.append([info["ipv4"], msg, info["content_id"], ports_list, l])
-            if count % 1000 == 0:
-                print(count, "documents has been added to snort list processing")
-                await asyncio.create_task(add_multiple_snort(conn, snort_list))
-                snort_list = [] 
+                if info["ipv4"] != "01.01.01.01" and info["ipv4"] != "1.1.1.1":
+                    snort_list.append([info["ipv4"], msg, info["content_id"], ports_list, l])
+            
         
         if len(snort_list) > 0:
             await asyncio.create_task(add_multiple_snort(conn, snort_list))
     except Error as e:
-        print(e, e.args[0])
+        print(e)
         pass    
 
-    
-
+async def fix_shodan_additional_info():
+    conn = await asyncio.create_task(create_connection_async(database))
+    result = []
+    sql = 'select shodan_id, additional_info from shodan'
+    async with conn.cursor() as c:
+        await c.execute(sql)
+        rows = await c.fetchall()
+        for row in rows:
+            (shodan_id, additional_info) = row
+            result.append([shodan_id, json.dumps(additional_info)])
+        sql = "update shodan set additional_info=? where shodan_id=?"
+        await c.executemany(sql, [(i[1], i[0]) for i in result])
+        await c.execute('commit')
 
         
 async def setup():
     conn = await asyncio.create_task(create_connection_async(database))
+    await asyncio.create_task(setup_tables(conn))
+    await conn.close()
+
+        
+async def setup_tables(conn):
+    #conn = await asyncio.create_task(create_connection_async(database))
     if conn is not None:
         #reset_snort_table(conn)
-        await asyncio.create_task(insert_snort_info(conn))
+        #await asyncio.create_task(fix_shodan_additional_info())
+        #await asyncio.create_task(insert_snort_info())
         #await asyncio.create_task(fix_port(conn))
         
         await asyncio.create_task(create_table(conn, sql_create_content_table))
@@ -898,12 +857,12 @@ async def setup():
         
         await asyncio.create_task(add_indexes(conn))
         
-        
-        await asyncio.create_task(extract_results(conn, ["vxvault", "user_AlienVault", "guest.CyberCrime_Tracker", "guest.EmergineThreats_rules", "guest.EmergingThreats_rules", \
+        '''
+        await asyncio.create_task(extract_results(["vxvault", "user_AlienVault", "guest.CyberCrime_Tracker", "guest.EmergineThreats_rules", "guest.EmergingThreats_rules", \
             "guest.MalwareDomainList_Hostlist", "guest.Abuse_ch", "guest.Lehigh_edu", "guest.blutmagie_de_torExits", "guest.dataForLast_7daysOnly", \
             "guest.phishtank_com", "system.Default"]))
-            
-        await conn.close()
+        '''  
+        #await conn.close()
 
 
 if __name__ == '__main__':
