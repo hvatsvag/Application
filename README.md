@@ -5,7 +5,7 @@ This application is set up to do the following work:
 * Verify if the IPv4 addresses are active by using shodan.io (Need to register to get your own key for this to work)
 * Create alert rules for snort. Program gives output to C:\Snort\rules\local.rules
 
-# Environment
+# Environment, use python 3.8
 The following libreries has to be installed in the environment to make this program run:
 * pip install pysimplegui
 * pip install asyncio
@@ -14,7 +14,6 @@ The following libreries has to be installed in the environment to make this prog
 * pip install --pre scapy[basic]
 * pip install shodan
 * pip install stix2-elevator
-* pip install spacy 
-  An emty model is used, so no need to download model seperatly
+* pip install spacy # An emty model is used, so no need to download model seperatly
 * pip install Pympler
 * pip install aiosqlite
