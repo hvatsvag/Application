@@ -17,3 +17,6 @@ The following libreries has to be installed in the environment to make this prog
 * pip install spacy # An emty model is used, so no need to download model seperatly
 * pip install Pympler
 * pip install aiosqlite
+
+# Run the program
+Run the app.py file.
