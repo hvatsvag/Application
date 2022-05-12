@@ -5,7 +5,7 @@ import json
 
 
 
-api = shodan.Shodan('xxA9iJHbQHyWApr4bPfnGAYbttCEJn6o')
+api = shodan.Shodan('PUT YOUR KEY IN HERE')
 
 async def shodan_search(ipv4):
     #time_now = datetime.now()
