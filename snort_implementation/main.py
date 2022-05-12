@@ -94,7 +94,7 @@ async def insert_snort_rules(conn):
 
         count, aditional_insert_info, ipv4_list_ip, ipv4_list_udp, ipv4_list_tcp = await asyncio.create_task(make_rules(count, info_dict[i]["Ports"], ipv4_list_ip, ipv4_list_udp, ipv4_list_tcp))
         insert_info += aditional_insert_info   
-        print(f"done with {count_ipv4}")
+        #print(f"done with {count_ipv4}")
         count_ipv4 = 0
                 
     await asyncio.create_task(reset_rule_table())

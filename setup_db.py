@@ -1,11 +1,5 @@
-from socket import timeout
-import sqlite3
 from aiosqlite import Error
 from datetime import datetime
-from cabby import exceptions as cabby_err
-import json
-#from snort_implementation.main import insert_snort
-
 import asyncio
 import aiosqlite
 

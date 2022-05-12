@@ -22,33 +22,50 @@ async def auto_poll(conn):
 async def get_clients():
     
     clients = []
-    
-    client1 = create_client(
-        'otx.alienvault.com',
-        use_https=True,
-        discovery_path='/taxii/discovery')
-    
-    collections1 = client1.get_collections()
-    client2 = create_client(
-        'open.taxiistand.com',
-        use_https=True,
-        discovery_path='/services/discovery')
-    collections2 = client2.get_collections()
-    for i in collections2:
-        if i.name == "vxvault":
-            collections2 = [i]
-    client3 = create_client(
-        'hailataxii.com',
-        discovery_path='/taxii-discovery-service')     
-    client3.set_auth(username="guest", password="guest")
-    servises = client3.discover_services()
-    collections3 = client3.get_collections()
-    clients.append([client1, collections1
-    ])
-    clients.append([client2, collections2
-    ])
-    clients.append([client3, collections3])
-    return clients
+    try:
+        client1 = create_client(
+            'otx.alienvault.com',
+            use_https=True,
+            discovery_path='/taxii/discovery')
+        
+        collections1 = client1.get_collections()
+        client2 = create_client(
+            'open.taxiistand.com',
+            use_https=True,
+            discovery_path='/services/discovery')
+        collections2 = client2.get_collections()
+        for i in collections2:
+            if i.name == "vxvault":
+                collections2 = [i]
+        client3 = create_client(
+            'hailataxii.com',
+            discovery_path='/taxii-discovery-service')     
+        client3.set_auth(username="guest", password="guest")
+        servises = client3.discover_services()
+        collections3 = client3.get_collections()
+        clients.append([client1, collections1
+        ])
+        clients.append([client2, collections2
+        ])
+        clients.append([client3, collections3])
+        return clients
+    except HTTPError as err:
+        print(err)
+        pass
+    except ServiceNotFoundError as err:
+        print(err)
+        pass
+    except NoURIProvidedError as err:
+        print(err)
+        pass
+    except InvalidResponseError as err:
+        print(err)
+        pass
+    except ClientException as err:
+        print(err)
+        pass
+    except: # This has been set up to avoid error when server breake connection, does not seem like there is a error handling this.
+        pass
      
 
 
